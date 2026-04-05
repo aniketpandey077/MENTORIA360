@@ -1,0 +1,318 @@
+// src/services/firestoreService.js
+// ============================================================
+// All Firestore database operations in one place.
+// This keeps components clean and Firebase logic centralized.
+// ============================================================
+
+import {
+  doc, getDoc, setDoc, updateDoc, deleteDoc,
+  collection, query, where, getDocs, addDoc,
+  serverTimestamp, orderBy, limit, writeBatch,
+} from "firebase/firestore";
+import { db } from "./firebase";
+
+/* ── USER OPERATIONS ──────────────────────────────────────── */
+
+/**
+ * Create a new user profile document in Firestore.
+ * Called right after Firebase Auth createUserWithEmailAndPassword.
+ */
+export async function createUserProfile(uid, data) {
+  await setDoc(doc(db, "users", uid), {
+    ...data,
+    createdAt: serverTimestamp(),
+  });
+}
+
+/**
+ * Fetch a user's profile by their Firebase Auth UID.
+ */
+export async function getUserProfile(uid) {
+  const snap = await getDoc(doc(db, "users", uid));
+  return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+}
+
+/**
+ * Update any fields in a user's profile.
+ */
+export async function updateUserProfile(uid, data) {
+  await updateDoc(doc(db, "users", uid), data);
+}
+
+/* ── COACHING OPERATIONS ──────────────────────────────────── */
+
+/**
+ * Create a new coaching institute document.
+ * Called when a new admin registers.
+ */
+export async function createCoaching(data) {
+  const ref = await addDoc(collection(db, "coachings"), {
+    ...data,
+    students: [],
+    createdAt: serverTimestamp(),
+  });
+  return ref.id;
+}
+
+/**
+ * Get a single coaching by its ID.
+ */
+export async function getCoaching(coachingId) {
+  const snap = await getDoc(doc(db, "coachings", coachingId));
+  return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+}
+
+/**
+ * Update coaching details (name, city, phone, etc).
+ */
+export async function updateCoaching(coachingId, data) {
+  await updateDoc(doc(db, "coachings", coachingId), data);
+}
+
+/**
+ * Get all coaching institutes (for student search / super admin).
+ */
+export async function getAllCoachings() {
+  const snap = await getDocs(collection(db, "coachings"));
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+/**
+ * Search coachings by name (case-insensitive via nameLower field).
+ */
+export async function searchCoachings(term) {
+  const all = await getAllCoachings();
+  const t = term.toLowerCase();
+  return all.filter(c =>
+    c.name?.toLowerCase().includes(t) ||
+    c.city?.toLowerCase().includes(t) ||
+    c.subject?.toLowerCase().includes(t)
+  );
+}
+
+/* ── JOIN REQUEST OPERATIONS ──────────────────────────────── */
+
+/**
+ * Student sends a join request to a coaching.
+ * Creates a document in coachings/{coachingId}/joinRequests.
+ */
+export async function createJoinRequest(coachingId, studentData) {
+  const reqRef = collection(db, "coachings", coachingId, "joinRequests");
+  await addDoc(reqRef, {
+    ...studentData,
+    status: "pending",
+    timestamp: serverTimestamp(),
+  });
+}
+
+/**
+ * Get all join requests for a coaching (admin view).
+ */
+export async function getJoinRequests(coachingId) {
+  const q = query(
+    collection(db, "coachings", coachingId, "joinRequests"),
+    orderBy("timestamp", "desc")
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+/**
+ * Approve a join request:
+ * 1. Update request status to "approved"
+ * 2. Add student UID to coaching's students array
+ * 3. Update student's profile with coachingId and approved status
+ */
+export async function approveJoinRequest(coachingId, requestId, studentId) {
+  const batch = writeBatch(db);
+
+  // Update the request document
+  batch.update(
+    doc(db, "coachings", coachingId, "joinRequests", requestId),
+    { status: "approved" }
+  );
+
+  // Add student to coaching's student list
+  const coachingRef = doc(db, "coachings", coachingId);
+  const coaching = await getCoaching(coachingId);
+  batch.update(coachingRef, {
+    students: [...(coaching.students || []), studentId],
+  });
+
+  // Update student profile
+  batch.update(doc(db, "users", studentId), {
+    coachingId,
+    status: "approved",
+  });
+
+  await batch.commit();
+}
+
+/**
+ * Reject a join request.
+ */
+export async function rejectJoinRequest(coachingId, requestId, studentId) {
+  const batch = writeBatch(db);
+  batch.update(
+    doc(db, "coachings", coachingId, "joinRequests", requestId),
+    { status: "rejected" }
+  );
+  batch.update(doc(db, "users", studentId), { status: "rejected" });
+  await batch.commit();
+}
+
+/* ── STUDENT MANAGEMENT ───────────────────────────────────── */
+
+/**
+ * Remove a student from a coaching.
+ */
+export async function removeStudent(coachingId, studentId) {
+  const coaching = await getCoaching(coachingId);
+  const updated = (coaching.students || []).filter(id => id !== studentId);
+
+  const batch = writeBatch(db);
+  batch.update(doc(db, "coachings", coachingId), { students: updated });
+  batch.update(doc(db, "users", studentId), { coachingId: null, status: "removed" });
+  await batch.commit();
+}
+
+/**
+ * Fetch full profiles for a list of student UIDs.
+ */
+export async function getStudentProfiles(studentIds) {
+  if (!studentIds.length) return [];
+  const profiles = await Promise.all(studentIds.map(id => getUserProfile(id)));
+  return profiles.filter(Boolean);
+}
+
+/* ── FEES OPERATIONS ──────────────────────────────────────── */
+
+/**
+ * Add a fee record for a student.
+ */
+export async function addFeeRecord(coachingId, data) {
+  const ref = collection(db, "coachings", coachingId, "fees");
+  await addDoc(ref, { ...data, createdAt: serverTimestamp() });
+}
+
+/**
+ * Get all fee records for a coaching.
+ */
+export async function getCoachingFees(coachingId) {
+  const q = query(
+    collection(db, "coachings", coachingId, "fees"),
+    orderBy("createdAt", "desc")
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+/**
+ * Get fee records for a specific student.
+ */
+export async function getStudentFees(coachingId, studentId) {
+  const q = query(
+    collection(db, "coachings", coachingId, "fees"),
+    where("studentId", "==", studentId)
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+/**
+ * Mark a fee record as paid and record the transaction.
+ */
+export async function markFeePaid(coachingId, feeId, feeData) {
+  const batch = writeBatch(db);
+
+  // Update fee record
+  batch.update(doc(db, "coachings", coachingId, "fees", feeId), {
+    paid: feeData.amount,
+    due: 0,
+    status: "paid",
+    paidAt: serverTimestamp(),
+  });
+
+  // Create transaction record
+  const txRef = doc(collection(db, "coachings", coachingId, "transactions"));
+  batch.set(txRef, {
+    studentId:   feeData.studentId,
+    studentName: feeData.studentName,
+    amount:      feeData.amount,
+    type:        "credit",
+    note:        `${feeData.month} fee`,
+    date:        new Date().toISOString().slice(0, 10),
+    createdAt:   serverTimestamp(),
+  });
+
+  await batch.commit();
+}
+
+/**
+ * Update partial payment on a fee.
+ */
+export async function recordPartialPayment(coachingId, feeId, paidAmount, totalAmount) {
+  await updateDoc(doc(db, "coachings", coachingId, "fees", feeId), {
+    paid:   paidAmount,
+    due:    totalAmount - paidAmount,
+    status: paidAmount >= totalAmount ? "paid" : "partial",
+  });
+}
+
+/* ── CLASS OPERATIONS ─────────────────────────────────────── */
+
+export async function addClass(coachingId, data) {
+  await addDoc(collection(db, "coachings", coachingId, "classes"), {
+    ...data,
+    createdAt: serverTimestamp(),
+  });
+}
+
+export async function getClasses(coachingId) {
+  const snap = await getDocs(collection(db, "coachings", coachingId, "classes"));
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+export async function deleteClass(coachingId, classId) {
+  await deleteDoc(doc(db, "coachings", coachingId, "classes", classId));
+}
+
+/* ── WORKSHOP OPERATIONS ──────────────────────────────────── */
+
+export async function addWorkshop(coachingId, data) {
+  await addDoc(collection(db, "coachings", coachingId, "workshops"), {
+    ...data,
+    enrolled: 0,
+    createdAt: serverTimestamp(),
+  });
+}
+
+export async function getWorkshops(coachingId) {
+  const snap = await getDocs(collection(db, "coachings", coachingId, "workshops"));
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+export async function enrollInWorkshop(coachingId, workshopId, currentEnrolled) {
+  await updateDoc(doc(db, "coachings", coachingId, "workshops", workshopId), {
+    enrolled: currentEnrolled + 1,
+  });
+}
+
+/* ── TRANSACTIONS ─────────────────────────────────────────── */
+
+export async function getTransactions(coachingId) {
+  const q = query(
+    collection(db, "coachings", coachingId, "transactions"),
+    orderBy("createdAt", "desc"),
+    limit(50)
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+/* ── SUPER ADMIN ──────────────────────────────────────────── */
+
+export async function getAllUsers() {
+  const snap = await getDocs(collection(db, "users"));
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
