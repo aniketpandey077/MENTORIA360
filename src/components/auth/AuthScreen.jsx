@@ -291,12 +291,29 @@ export default function AuthScreen({ initialTab = "login", initialRegRole = "stu
     setError(""); setLoading(true);
     try {
       const result = await loginWithGoogle();
-      if (result.isNew) {
+      if (result?.redirecting) {
+        // Redirect in progress — page will navigate away and come back
+        // Keep loading state; don't reset it.
+        return;
+      }
+      if (result?.isNew) {
         setNewSocialUser(result.user);
       }
     } catch (err) {
-      if (err.code !== "auth/popup-closed-by-user") {
-        setError("Google sign-in failed. Please try again.");
+      console.error("Google sign-in error:", err.code, err.message, err);
+      if (
+        err.code === "auth/popup-closed-by-user" ||
+        err.code === "auth/cancelled-popup-request"
+      ) {
+        // User dismissed — silent
+      } else if (err.code === "auth/unauthorized-domain") {
+        setError("Domain not authorized. Add this domain in Firebase Console → Authentication → Authorized Domains.");
+      } else if (err.code === "auth/operation-not-allowed") {
+        setError("Google sign-in not enabled. Go to Firebase Console → Authentication → Sign-in method → Enable Google.");
+      } else if (err.code === "auth/internal-error") {
+        setError("Firebase internal error — check that Google is enabled as a Sign-in provider in Firebase Console.");
+      } else {
+        setError(`Google sign-in failed [${err.code || "unknown"}]: ${err.message || "Please try again."}`);
       }
     } finally { setLoading(false); }
   };

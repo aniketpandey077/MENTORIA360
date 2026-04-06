@@ -1,13 +1,13 @@
 // src/components/shared/Sidebar.jsx
 // ============================================================
-// Navigation sidebar. Renders different nav items by role.
-// Mobile-responsive: toggled by a floating jumper button.
+// Navigation sidebar. Desktop: fixed left panel.
+// Mobile: sticky bottom tab bar (4 key items) + "More" drawer.
 // ============================================================
 
 import React, { useState, useEffect } from "react";
-import Icon from "./Icon";
 import { getInitials } from "../../utils/helpers";
 
+// ── Nav definitions per role ──────────────────────────────────
 const NAV = {
   superadmin: [
     { key: "dashboard",  icon: "dashboard",  label: "Overview" },
@@ -19,37 +19,45 @@ const NAV = {
   admin: [
     { key: "dashboard",      icon: "dashboard",  label: "Dashboard" },
     { key: "students",       icon: "users",       label: "Students" },
-    { key: "requests",       icon: "request",     label: "Join Requests" },
+    { key: "requests",       icon: "request",     label: "Requests" },
     { key: "attendance",     icon: "calendar",    label: "Attendance" },
     { key: "fees",           icon: "fee",         label: "Fees" },
     { key: "classes",        icon: "class",       label: "Classes" },
     { key: "homework",       icon: "homework",    label: "Homework" },
-    { key: "tests",          icon: "test",        label: "Tests & Quizzes" },
+    { key: "tests",          icon: "test",        label: "Tests" },
     { key: "workshops",      icon: "workshop",    label: "Workshops" },
-    { key: "materials",      icon: "material",    label: "Study Materials" },
-    { key: "announcements",  icon: "announce",    label: "Announcements" },
-    { key: "payments",       icon: "fee",         label: "Payment Methods" },
+    { key: "materials",      icon: "material",    label: "Materials" },
+    { key: "announcements",  icon: "announce",    label: "Announce" },
+    { key: "payments",       icon: "fee",         label: "Payments" },
   ],
   tutor: [
     { key: "dashboard",      icon: "dashboard",  label: "Dashboard" },
-    { key: "profile",        icon: "profile",    label: "My Profile" },
-    { key: "payments",       icon: "fee",        label: "Payment Methods" },
-    { key: "reviews",        icon: "star",       label: "My Reviews" },
+    { key: "profile",        icon: "profile",    label: "Profile" },
+    { key: "payments",       icon: "fee",        label: "Payments" },
+    { key: "reviews",        icon: "star",       label: "Reviews" },
   ],
   student: [
-    { key: "dashboard",      icon: "dashboard",  label: "My Dashboard" },
-    { key: "profile",        icon: "profile",    label: "My Profile" },
+    { key: "dashboard",      icon: "dashboard",  label: "Home" },
+    { key: "profile",        icon: "profile",    label: "Profile" },
     { key: "attendance",     icon: "calendar",   label: "Attendance" },
-    { key: "classes",        icon: "class",      label: "My Classes" },
-    { key: "fees",           icon: "fee",        label: "My Fees" },
+    { key: "classes",        icon: "class",      label: "Classes" },
+    { key: "fees",           icon: "fee",        label: "Fees" },
     { key: "homework",       icon: "homework",   label: "Homework" },
-    { key: "tests",          icon: "test",       label: "Tests & Quizzes" },
+    { key: "tests",          icon: "test",       label: "Tests" },
     { key: "workshops",      icon: "workshop",   label: "Workshops" },
-    { key: "materials",      icon: "material",   label: "Study Materials" },
-    { key: "announcements",  icon: "announce",   label: "Announcements" },
-    { key: "payments",       icon: "fee",        label: "Payment Methods" },
-    { key: "reviews",        icon: "star",       label: "Write Review" },
+    { key: "materials",      icon: "material",   label: "Materials" },
+    { key: "announcements",  icon: "announce",   label: "Announce" },
+    { key: "payments",       icon: "fee",        label: "Payments" },
+    { key: "reviews",        icon: "star",       label: "Reviews" },
   ],
+};
+
+// Which 4 items appear in bottom bar per role
+const BOTTOM_TAB_KEYS = {
+  superadmin: ["dashboard", "institutes", "tutors", "users"],
+  admin:      ["dashboard", "students",   "fees",   "attendance"],
+  tutor:      ["dashboard", "profile",    "payments","reviews"],
+  student:    ["dashboard", "classes",    "fees",    "tests"],
 };
 
 const ROLE_LABEL = {
@@ -60,19 +68,20 @@ const ROLE_LABEL = {
 };
 
 export default function Sidebar({ role, active, setActive, profile, onLogout, pendingCount = 0 }) {
-  const navItems = NAV[role] || [];
+  const navItems    = NAV[role] || [];
+  const bottomKeys  = BOTTOM_TAB_KEYS[role] || navItems.slice(0, 4).map(n => n.key);
+  const bottomItems = bottomKeys.map(k => navItems.find(n => n.key === k)).filter(Boolean);
+
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  // Close sidebar on route change (mobile)
-  useEffect(() => {
-    setMobileOpen(false);
-  }, [active]);
+  // Close drawer on route change
+  useEffect(() => { setMobileOpen(false); }, [active]);
 
-  // Close sidebar when clicking outside (mobile)
+  // Close drawer when clicking outside
   useEffect(() => {
     if (!mobileOpen) return;
     const handler = (e) => {
-      if (!e.target.closest(".sidebar") && !e.target.closest(".sidebar-jumper")) {
+      if (!e.target.closest(".sidebar") && !e.target.closest(".sidebar-more-btn")) {
         setMobileOpen(false);
       }
     };
@@ -87,77 +96,37 @@ export default function Sidebar({ role, active, setActive, profile, onLogout, pe
 
   return (
     <>
-      {/* ── Mobile overlay ─────────────────────────────────── */}
+      {/* ── Mobile overlay ───────────────────────────────────── */}
       {mobileOpen && (
         <div
           onClick={() => setMobileOpen(false)}
           style={{
             position: "fixed", inset: 0, zIndex: 149,
-            background: "rgba(0,0,0,0.55)", backdropFilter: "blur(4px)",
+            background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)",
           }}
         />
       )}
 
-      {/* ── Floating jumper button (mobile only) ─────────── */}
-      <button
-        className="sidebar-jumper"
-        onClick={() => setMobileOpen(o => !o)}
-        title={mobileOpen ? "Close menu" : "Open menu"}
-        style={{
-          position: "fixed",
-          bottom: 22,
-          left: 22,
-          zIndex: 200,
-          width: 50,
-          height: 50,
-          borderRadius: "50%",
-          background: "linear-gradient(135deg, var(--accent), #8b5cf6)",
-          border: "none",
-          cursor: "pointer",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          boxShadow: "0 4px 20px rgba(99,102,241,0.5)",
-          transition: "transform 0.2s, box-shadow 0.2s",
-          // Only visible on small screens — handled via @media in CSS
-        }}
-        onMouseEnter={e => { e.currentTarget.style.transform = "scale(1.1)"; }}
-        onMouseLeave={e => { e.currentTarget.style.transform = "scale(1)"; }}
-        aria-label="Toggle navigation"
-      >
-        {mobileOpen ? (
-          // X icon
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="#fff">
-            <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
-          </svg>
-        ) : (
-          // Menu / grid icon
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="#fff">
-            <path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/>
-          </svg>
-        )}
-      </button>
-
-      {/* ── Sidebar panel ─────────────────────────────────── */}
+      {/* ── Desktop / slide-in Sidebar panel ─────────────────── */}
       <div
         className={`sidebar${mobileOpen ? " sidebar-mobile-open" : ""}`}
         style={{ zIndex: 150 }}
       >
         {/* Logo */}
-        <div style={{ padding: "24px 20px", borderBottom: "1px solid var(--border)" }}>
+        <div style={{ padding: "20px 18px", borderBottom: "1px solid var(--border)" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <div style={{
-              width: 32, height: 32,
+              width: 30, height: 30,
               background: "linear-gradient(135deg, var(--accent), #8b5cf6)",
               borderRadius: 8,
               display: "flex", alignItems: "center", justifyContent: "center",
             }}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="#fff">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="#fff">
                 <path d="M12 3L1 9l11 6 9-4.91V17h2V9L12 3zm-2 11.5v3.5L12 19l2-1v-3.5L12 16l-2-1.5z"/>
               </svg>
             </div>
             <div>
-              <h1 style={{ fontFamily: "Syne, sans-serif", fontSize: 18, fontWeight: 800, color: "var(--accent2)", lineHeight: 1 }}>
+              <h1 style={{ fontFamily: "Syne, sans-serif", fontSize: 16, fontWeight: 800, color: "var(--accent2)", lineHeight: 1 }}>
                 Mentoria360
               </h1>
               <p style={{ fontSize: 10, color: "var(--text3)", marginTop: 2 }}>
@@ -167,8 +136,8 @@ export default function Sidebar({ role, active, setActive, profile, onLogout, pe
           </div>
         </div>
 
-        {/* Navigation */}
-        <div style={{ padding: "8px 0", flex: 1, overflowY: "auto" }}>
+        {/* Navigation list */}
+        <div style={{ padding: "6px 0", flex: 1, overflowY: "auto" }}>
           <div className="nav-section">Navigation</div>
           {navItems.map(item => (
             <button
@@ -176,9 +145,8 @@ export default function Sidebar({ role, active, setActive, profile, onLogout, pe
               className={`nav-item${active === item.key ? " active" : ""}`}
               onClick={() => handleNavClick(item.key)}
             >
-              <NavIcon name={item.icon} size={15} />
+              <NavIcon name={item.icon} size={14} />
               <span style={{ flex: 1 }}>{item.label}</span>
-              {/* Badge for pending requests */}
               {item.key === "requests" && pendingCount > 0 && (
                 <span style={{
                   background: "var(--red)", color: "#fff",
@@ -193,9 +161,9 @@ export default function Sidebar({ role, active, setActive, profile, onLogout, pe
         </div>
 
         {/* User info + logout */}
-        <div style={{ borderTop: "1px solid var(--border)", padding: "12px 0" }}>
-          <div style={{ padding: "8px 20px", display: "flex", gap: 10, alignItems: "center" }}>
-            <div className="avatar" style={{ width: 34, height: 34, fontSize: 12 }}>
+        <div style={{ borderTop: "1px solid var(--border)", padding: "10px 0" }}>
+          <div style={{ padding: "8px 18px", display: "flex", gap: 10, alignItems: "center" }}>
+            <div className="avatar" style={{ width: 32, height: 32, fontSize: 11 }}>
               {getInitials(profile?.name || "U")}
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
@@ -212,11 +180,50 @@ export default function Sidebar({ role, active, setActive, profile, onLogout, pe
           </button>
         </div>
       </div>
+
+      {/* ── Mobile Bottom Tab Bar ─────────────────────────────── */}
+      <nav className="mobile-bottom-nav">
+        {bottomItems.map(item => (
+          <button
+            key={item.key}
+            className={`mobile-tab-btn${active === item.key ? " active" : ""}`}
+            onClick={() => handleNavClick(item.key)}
+          >
+            <NavIcon name={item.icon} size={20} />
+            <span>{item.label}</span>
+            {item.key === "requests" && pendingCount > 0 && (
+              <span style={{
+                position: "absolute", top: 4, right: "50%", transform: "translateX(14px)",
+                background: "var(--red)", color: "#fff",
+                borderRadius: 10, fontSize: 9,
+                padding: "1px 5px", fontWeight: 700,
+              }}>
+                {pendingCount}
+              </span>
+            )}
+          </button>
+        ))}
+
+        {/* More button — opens full sidebar drawer */}
+        <button
+          className={`mobile-tab-btn sidebar-more-btn${mobileOpen ? " active" : ""}`}
+          onClick={() => setMobileOpen(o => !o)}
+        >
+          {mobileOpen ? (
+            <NavIcon name="close" size={20} />
+          ) : (
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/>
+            </svg>
+          )}
+          <span>{mobileOpen ? "Close" : "More"}</span>
+        </button>
+      </nav>
     </>
   );
 }
 
-// Extended icon component with all icons
+// ── Icon SVG component ────────────────────────────────────────
 function NavIcon({ name, size = 16 }) {
   const icons = {
     dashboard: "M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z",
@@ -237,11 +244,12 @@ function NavIcon({ name, size = 16 }) {
     profile:   "M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z",
     tutor:     "M20 17c0 1.1-.9 2-2 2H4l-4 4V5c0-1.1.9-2 2-2h16c1.1 0 2 .9 2 2v12zM6 9v2h12V9H6zm0 4v2h8v-2H6z",
     star:      "M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z",
+    close:     "M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z",
   };
 
   const path = icons[name] || icons.dashboard;
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" style={{ flexShrink: 0, opacity: 0.8 }}>
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" style={{ flexShrink: 0, opacity: 0.85 }}>
       <path d={path} />
     </svg>
   );

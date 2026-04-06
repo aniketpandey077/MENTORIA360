@@ -316,26 +316,90 @@ tbody tr:hover td { background: var(--bg3); }
 }
 .main-content { margin-left: 220px; padding: 32px; min-height: 100vh; }
 
-/* ── Mobile sidebar jumper button ──────────────────────────── */
+/* ── Old floating jumper — disabled (kept for reference) ────── */
 .sidebar-jumper { display: none; }
 
+/* ── Mobile bottom tab bar ──────────────────────────────────── */
+.mobile-bottom-nav {
+  display: none; /* hidden on desktop */
+}
+
 @media (max-width: 768px) {
+  /* Hide desktop sidebar, keep it as a slide-in drawer */
   .sidebar {
     transform: translateX(-100%);
     z-index: 150;
     box-shadow: 4px 0 30px rgba(0,0,0,0.5);
+    /* Slide in from bottom on mobile — looks more natural */
+    width: 100%;
+    min-height: auto;
+    max-height: 85vh;
+    top: auto;
+    bottom: 64px; /* sits above bottom nav */
+    left: 0;
+    border-radius: 20px 20px 0 0;
+    border-right: none;
+    border-top: 1px solid var(--border);
+    transform: translateY(100%);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
   .sidebar.sidebar-mobile-open {
-    transform: translateX(0);
+    transform: translateY(0);
   }
+
+  /* Main content clears the bottom tab bar */
   .main-content {
     margin-left: 0;
-    padding: 20px 16px 80px;
+    padding: 16px 14px 80px;
+    min-height: 100vh;
   }
-  .sidebar-jumper {
-    display: flex !important;
+
+  /* ── Sticky bottom navigation bar ── */
+  .mobile-bottom-nav {
+    display: flex;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 62px;
+    background: var(--bg2);
+    border-top: 1px solid var(--border);
+    z-index: 200;
+    box-shadow: 0 -4px 20px rgba(0,0,0,0.3);
+    padding: 0 4px;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
   }
-  .stats-grid { grid-template-columns: repeat(2, 1fr); }
+
+  .mobile-tab-btn {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text3);
+    font-size: 10px;
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 500;
+    padding: 6px 2px;
+    border-radius: 10px;
+    transition: all 0.15s;
+    position: relative;
+  }
+  .mobile-tab-btn.active {
+    color: var(--accent2);
+  }
+  .mobile-tab-btn.active svg {
+    opacity: 1;
+  }
+  .mobile-tab-btn svg {
+    opacity: 0.6;
+  }
+
+  .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
 }
 
 .nav-item {
@@ -398,3 +462,45 @@ tbody tr:hover td { background: var(--bg3); }
   50% { box-shadow: 0 0 40px rgba(108,99,255,0.6); }
 }
 .promo-glow { animation: glow 3s ease-in-out infinite; }
+
+/* ── Landing page grids ──────────────────────────────────────── */
+.coaching-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 16px;
+}
+.tutors-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+/* ── Landing nav mobile behavior ─────────────────────────────── */
+/* Mobile section tabs — hidden by default, shown on small screens */
+.landing-mobile-tabs {
+  display: none;
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+}
+
+/* Table overflow fix on mobile */
+@media (max-width: 600px) {
+  table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+}
+
+@media (max-width: 640px) {
+  /* Show mobile section tabs, hide desktop nav tabs */
+  .landing-mobile-tabs { display: flex !important; }
+  .landing-nav-tabs { display: none !important; }
+  .landing-signin-btn { display: none !important; }
+
+  /* Single-column card grids */
+  .coaching-grid { grid-template-columns: 1fr; }
+  .tutors-grid   { grid-template-columns: 1fr; }
+
+  /* Dashboard stats on mobile */
+  .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+
+  /* Main content padding on mobile for logged-in pages */
+  .main-content { padding: 16px 12px 80px; }
+}

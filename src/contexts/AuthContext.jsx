@@ -13,6 +13,8 @@ import {
   updateProfile,
   GoogleAuthProvider,
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   RecaptchaVerifier,
   signInWithPhoneNumber,
 } from "firebase/auth";
@@ -26,8 +28,25 @@ export function AuthProvider({ children }) {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Listen for Firebase Auth state changes
+  // Listen for Firebase Auth state changes + handle Google redirect result
   useEffect(() => {
+    // Handle redirect result (Google sign-in on mobile)
+    getRedirectResult(auth).then(async (result) => {
+      if (result?.user) {
+        const firebaseUser = result.user;
+        setUser(firebaseUser);
+        try {
+          let p = await getUserProfile(firebaseUser.uid);
+          if (!p) {
+            // New user via redirect — profile will be set after social setup
+            setProfile(null);
+          } else {
+            setProfile(p);
+          }
+        } catch { setProfile(null); }
+      }
+    }).catch(() => {});
+
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       try {
         if (firebaseUser) {
@@ -37,8 +56,6 @@ export function AuthProvider({ children }) {
             setProfile(p);
           } catch (profileErr) {
             console.error("Failed to load user profile:", profileErr);
-            // Profile load failed — user is authenticated but we can't get their profile.
-            // Set profile to null so UI shows auth screen or a recovery option.
             setProfile(null);
           }
         } else {
@@ -83,25 +100,37 @@ export function AuthProvider({ children }) {
     return cred.user;
   }
 
-  // ── Google OAuth ────────────────────────────────────────────
+  // ── Google OAuth (popup + redirect fallback) ────────────────
   async function loginWithGoogle() {
     const provider = new GoogleAuthProvider();
     provider.setCustomParameters({ prompt: "select_account" });
-    const result = await signInWithPopup(auth, provider);
-    const firebaseUser = result.user;
+    provider.addScope("email");
+    provider.addScope("profile");
 
-    // Check if profile exists
-    let p = await getUserProfile(firebaseUser.uid);
-
-    if (!p) {
-      // New Google user — return null profile so UI can ask for role
-      setUser(firebaseUser);
-      setProfile(null);
-      return { user: firebaseUser, isNew: true };
+    try {
+      // Try popup first (desktop + most browsers)
+      const result = await signInWithPopup(auth, provider);
+      const firebaseUser = result.user;
+      let p = await getUserProfile(firebaseUser.uid);
+      if (!p) {
+        setUser(firebaseUser);
+        setProfile(null);
+        return { user: firebaseUser, isNew: true };
+      }
+      setProfile(p);
+      return { user: firebaseUser, isNew: false };
+    } catch (err) {
+      // Popup blocked (common on mobile) → fall back to redirect flow
+      if (
+        err.code === "auth/popup-blocked" ||
+        err.code === "auth/popup-closed-by-user" ||
+        err.code === "auth/cancelled-popup-request"
+      ) {
+        await signInWithRedirect(auth, provider);
+        return { redirecting: true };
+      }
+      throw err; // Re-throw other errors (unauthorized-domain, etc.)
     }
-
-    setProfile(p);
-    return { user: firebaseUser, isNew: false };
   }
 
   // ── Create profile for new social/phone users ───────────────

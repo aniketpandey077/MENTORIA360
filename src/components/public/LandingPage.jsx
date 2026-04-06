@@ -97,35 +97,37 @@ export default function LandingPage({ onShowAuth, preSelectCoaching }) {
         position: "sticky", top: 0, zIndex: 100,
         background: "rgba(13,13,26,0.92)", backdropFilter: "blur(20px)",
         borderBottom: "1px solid var(--border)",
-        padding: "0 24px", height: 64,
+        padding: "0 16px", height: 60,
         display: "flex", alignItems: "center", justifyContent: "space-between",
+        gap: 8,
       }}>
         {/* Brand */}
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
           <div style={{
-            width: 34, height: 34,
+            width: 32, height: 32,
             background: "linear-gradient(135deg, var(--accent), #8b5cf6)",
             borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center",
+            flexShrink: 0,
           }}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="#fff">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="#fff">
               <path d="M12 3L1 9l11 6 9-4.91V17h2V9L12 3zm-2 11.5v3.5L12 19l2-1v-3.5L12 16l-2-1.5z"/>
             </svg>
           </div>
-          <span style={{ fontFamily: "Syne, sans-serif", fontWeight: 800, fontSize: 20, color: "var(--accent2)" }}>
+          <span className="landing-brand-text" style={{ fontFamily: "Syne, sans-serif", fontWeight: 800, fontSize: 18, color: "var(--accent2)", whiteSpace: "nowrap" }}>
             Mentoria360
           </span>
         </div>
 
-        {/* Nav tabs (section jumper) */}
-        <div style={{ display: "flex", gap: 4, position: "absolute", left: "50%", transform: "translateX(-50%)" }}>
+        {/* Nav tabs — hidden on mobile, shown on desktop */}
+        <div className="landing-nav-tabs" style={{ display: "flex", gap: 4, flex: 1, justifyContent: "center" }}>
           <button
             onClick={() => scrollTo("coachings")}
             style={{
               background: activeSection === "coachings" ? "var(--accent-bg)" : "none",
               border: activeSection === "coachings" ? "1px solid rgba(108,99,255,0.4)" : "1px solid transparent",
               color: activeSection === "coachings" ? "var(--accent2)" : "var(--text2)",
-              borderRadius: 8, padding: "6px 16px", fontSize: 13, fontWeight: 600, cursor: "pointer",
-              fontFamily: "DM Sans, sans-serif", transition: "all 0.2s",
+              borderRadius: 8, padding: "6px 14px", fontSize: 13, fontWeight: 600, cursor: "pointer",
+              fontFamily: "DM Sans, sans-serif", transition: "all 0.2s", whiteSpace: "nowrap",
             }}
           >
             🏫 Coachings
@@ -136,25 +138,49 @@ export default function LandingPage({ onShowAuth, preSelectCoaching }) {
               background: activeSection === "tutors" ? "var(--accent-bg)" : "none",
               border: activeSection === "tutors" ? "1px solid rgba(108,99,255,0.4)" : "1px solid transparent",
               color: activeSection === "tutors" ? "var(--accent2)" : "var(--text2)",
-              borderRadius: 8, padding: "6px 16px", fontSize: 13, fontWeight: 600, cursor: "pointer",
-              fontFamily: "DM Sans, sans-serif", transition: "all 0.2s",
+              borderRadius: 8, padding: "6px 14px", fontSize: 13, fontWeight: 600, cursor: "pointer",
+              fontFamily: "DM Sans, sans-serif", transition: "all 0.2s", whiteSpace: "nowrap",
             }}
           >
             👨‍🏫 Tutors
           </button>
         </div>
 
-        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-          <button className="btn btn-secondary btn-sm" onClick={() => onShowAuth("login")}>Sign In</button>
-          <button className="btn btn-primary btn-sm" onClick={() => onShowAuth("register")}>Register Free</button>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexShrink: 0 }}>
+          <button className="btn btn-secondary btn-sm landing-signin-btn" onClick={() => onShowAuth("login")}>Sign In</button>
+          <button className="btn btn-primary btn-sm" onClick={() => onShowAuth("register")} style={{ whiteSpace: "nowrap" }}>Register</button>
         </div>
       </nav>
+
+      {/* ── Mobile section switcher (shown only on small screens) */}
+      <div className="landing-mobile-tabs">
+        <button
+          onClick={() => scrollTo("coachings")}
+          style={{
+            flex: 1, padding: "9px 0", border: "none",
+            background: activeSection === "coachings" ? "var(--accent-bg)" : "transparent",
+            color: activeSection === "coachings" ? "var(--accent2)" : "var(--text2)",
+            borderBottom: activeSection === "coachings" ? "2px solid var(--accent)" : "2px solid transparent",
+            fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: "DM Sans, sans-serif",
+          }}
+        >🏫 Coachings</button>
+        <button
+          onClick={() => scrollTo("tutors")}
+          style={{
+            flex: 1, padding: "9px 0", border: "none",
+            background: activeSection === "tutors" ? "var(--accent-bg)" : "transparent",
+            color: activeSection === "tutors" ? "var(--accent2)" : "var(--text2)",
+            borderBottom: activeSection === "tutors" ? "2px solid var(--accent)" : "2px solid transparent",
+            fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: "DM Sans, sans-serif",
+          }}
+        >👨‍🏫 Tutors</button>
+      </div>
 
       {/* ── Hero Section ──────────────────────────────────── */}
       <div style={{
         background: "linear-gradient(135deg, rgba(99,102,241,0.15) 0%, rgba(139,92,246,0.08) 50%, transparent 100%)",
         borderBottom: "1px solid var(--border)",
-        padding: "64px 24px 48px",
+        padding: "clamp(32px, 8vw, 64px) 16px clamp(28px, 6vw, 48px)",
         textAlign: "center",
         position: "relative",
         overflow: "hidden",
@@ -179,14 +205,14 @@ export default function LandingPage({ onShowAuth, preSelectCoaching }) {
           </div>
 
           <h1 style={{
-            fontFamily: "Syne, sans-serif", fontSize: "clamp(32px, 6vw, 60px)",
-            fontWeight: 900, lineHeight: 1.1, marginBottom: 16,
+            fontFamily: "Syne, sans-serif", fontSize: "clamp(26px, 7vw, 60px)",
+            fontWeight: 900, lineHeight: 1.1, marginBottom: 14,
             background: "linear-gradient(135deg, #fff 0%, var(--accent2) 100%)",
             WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
           }}>
             Find Your Perfect<br />Coach or Institute
           </h1>
-          <p style={{ fontSize: 16, color: "var(--text2)", marginBottom: 36, maxWidth: 520, margin: "0 auto 36px" }}>
+          <p style={{ fontSize: "clamp(13px, 3.5vw, 16px)", color: "var(--text2)", maxWidth: 520, margin: "0 auto 28px" }}>
             Discover top coaching centres & private tutors for IIT-JEE, NEET, UPSC & more.
             Browse, compare, and join — all in one place.
           </p>
@@ -197,7 +223,7 @@ export default function LandingPage({ onShowAuth, preSelectCoaching }) {
             background: "var(--bg2)", border: "1px solid var(--border)",
             borderRadius: 14, overflow: "hidden", boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
           }}>
-            <div style={{ display: "flex", alignItems: "center", padding: "0 16px", color: "var(--text3)" }}>
+            <div style={{ display: "flex", alignItems: "center", padding: "0 14px", color: "var(--text3)", flexShrink: 0 }}>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
               </svg>
@@ -205,14 +231,14 @@ export default function LandingPage({ onShowAuth, preSelectCoaching }) {
             <input
               value={search}
               onChange={e => setSearch(e.target.value)}
-              placeholder="Search institutes, tutors, subjects, cities..."
+              placeholder="Search institutes, subjects, city..."
               style={{
                 flex: 1, background: "none", border: "none", outline: "none",
-                fontSize: 14, color: "var(--text)", padding: "14px 0",
+                fontSize: 14, color: "var(--text)", padding: "12px 0", minWidth: 0,
               }}
             />
             {search && (
-              <button onClick={() => setSearch("")} style={{ background: "none", border: "none", color: "var(--text3)", padding: "0 16px", cursor: "pointer", fontSize: 18 }}>×</button>
+              <button onClick={() => setSearch("")} style={{ background: "none", border: "none", color: "var(--text3)", padding: "0 14px", cursor: "pointer", fontSize: 18, flexShrink: 0 }}>×</button>
             )}
           </div>
         </div>
@@ -220,7 +246,7 @@ export default function LandingPage({ onShowAuth, preSelectCoaching }) {
 
       {/* ── Stats Banner ──────────────────────────────────── */}
       <div style={{
-        display: "flex", justifyContent: "center", gap: 0,
+        display: "flex", justifyContent: "center",
         background: "var(--bg2)", borderBottom: "1px solid var(--border)",
         flexWrap: "wrap",
       }}>
@@ -231,12 +257,11 @@ export default function LandingPage({ onShowAuth, preSelectCoaching }) {
           { label: "Subjects",   value: "10+",            icon: "📚" },
         ].map((s, i) => (
           <div key={i} style={{
-            padding: "18px 36px", textAlign: "center",
-            borderRight: i < 3 ? "1px solid var(--border)" : "none",
+            padding: "14px 20px", textAlign: "center", flex: "1 1 70px",
           }}>
-            <div style={{ fontSize: 20 }}>{s.icon}</div>
-            <div style={{ fontSize: 22, fontWeight: 800, color: "var(--text)", fontFamily: "Syne, sans-serif" }}>{s.value}</div>
-            <div style={{ fontSize: 11, color: "var(--text3)", textTransform: "uppercase", letterSpacing: "0.06em" }}>{s.label}</div>
+            <div style={{ fontSize: 18 }}>{s.icon}</div>
+            <div style={{ fontSize: 20, fontWeight: 800, color: "var(--text)", fontFamily: "Syne, sans-serif" }}>{s.value}</div>
+            <div style={{ fontSize: 10, color: "var(--text3)", textTransform: "uppercase", letterSpacing: "0.06em" }}>{s.label}</div>
           </div>
         ))}
       </div>
@@ -248,40 +273,39 @@ export default function LandingPage({ onShowAuth, preSelectCoaching }) {
           background: "linear-gradient(135deg, rgba(108,99,255,0.12) 0%, rgba(139,92,246,0.08) 100%)",
           border: "1px solid rgba(108,99,255,0.3)",
           borderRadius: 16,
-          margin: "24px",
-          padding: "22px 28px",
+          margin: "16px",
+          padding: "18px 18px",
           display: "flex",
-          alignItems: "center",
+          alignItems: "flex-start",
           justifyContent: "space-between",
           flexWrap: "wrap",
-          gap: 16,
+          gap: 14,
         }}
       >
-        <div>
-          <div style={{ fontSize: 24, marginBottom: 4 }}>🚀</div>
+        <div style={{ flex: "1 1 200px", minWidth: 0 }}>
+          <div style={{ fontSize: 22, marginBottom: 4 }}>🚀</div>
           <h2 style={{
-            fontFamily: "Syne, sans-serif", fontSize: "clamp(18px, 3vw, 26px)",
+            fontFamily: "Syne, sans-serif", fontSize: "clamp(14px, 4vw, 22px)",
             fontWeight: 900, color: "#fff", marginBottom: 6,
           }}>
-            To promote your institute, list here on Mentoria360!
+            List your institute on Mentoria360!
           </h2>
-          <p style={{ color: "var(--text2)", fontSize: 14, maxWidth: 520 }}>
-            Reach thousands of students in your city. Manage attendance, fees, classes & more — all for free.
-            Coaches & tutors welcome!
+          <p style={{ color: "var(--text2)", fontSize: 13 }}>
+            Reach thousands of students. Manage attendance, fees, classes & more — all free.
           </p>
         </div>
-        <div style={{ display: "flex", gap: 10, flexShrink: 0 }}>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", flexShrink: 0 }}>
           <button
-            className="btn btn-primary"
+            className="btn btn-primary btn-sm"
             onClick={() => onShowAuth("register-admin")}
-            style={{ fontWeight: 700, fontSize: 14 }}
+            style={{ fontWeight: 700 }}
           >
             Register Institute →
           </button>
           <button
-            className="btn btn-secondary"
+            className="btn btn-secondary btn-sm"
             onClick={() => onShowAuth("register-tutor")}
-            style={{ fontWeight: 700, fontSize: 14 }}
+            style={{ fontWeight: 700 }}
           >
             Register as Tutor →
           </button>
@@ -291,7 +315,7 @@ export default function LandingPage({ onShowAuth, preSelectCoaching }) {
       {/* ───────────────────────────────────────────────────── */}
       {/* ── COACHINGS SECTION ─────────────────────────────── */}
       {/* ───────────────────────────────────────────────────── */}
-      <div ref={coachingsRef} style={{ maxWidth: 1240, margin: "0 auto", padding: "0 24px 48px" }}>
+      <div ref={coachingsRef} style={{ maxWidth: 1240, margin: "0 auto", padding: "0 16px 48px" }}>
 
         {/* Section header */}
         <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "32px 0 20px" }}>
@@ -368,7 +392,7 @@ export default function LandingPage({ onShowAuth, preSelectCoaching }) {
           </div>
         )}
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))", gap: 20 }}>
+        <div className="coaching-grid">
           {filteredCoachings.map(c => (
             <CoachingCard
               key={c.id}
@@ -387,7 +411,7 @@ export default function LandingPage({ onShowAuth, preSelectCoaching }) {
         style={{
           borderTop: "2px solid var(--border)",
           background: "linear-gradient(180deg, rgba(139,92,246,0.05) 0%, transparent 60%)",
-          padding: "0 24px 60px",
+          padding: "0 16px 60px",
         }}
       >
         <div style={{ maxWidth: 1240, margin: "0 auto" }}>
@@ -438,7 +462,7 @@ export default function LandingPage({ onShowAuth, preSelectCoaching }) {
             </div>
           )}
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 20 }}>
+          <div className="tutors-grid">
             {filteredTutors.map(t => (
               <TutorCard key={t.id} tutor={t} onContact={() => onShowAuth("login")} />
             ))}
@@ -448,9 +472,9 @@ export default function LandingPage({ onShowAuth, preSelectCoaching }) {
 
       {/* ── Footer ───────────────────────────────────────── */}
       <div style={{
-        borderTop: "1px solid var(--border)", padding: "24px",
+        borderTop: "1px solid var(--border)", padding: "16px",
         display: "flex", justifyContent: "space-between", alignItems: "center",
-        flexWrap: "wrap", gap: 12, color: "var(--text3)", fontSize: 12,
+        flexWrap: "wrap", gap: 10, color: "var(--text3)", fontSize: 12,
         background: "var(--bg2)",
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
