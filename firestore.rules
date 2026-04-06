@@ -40,10 +40,14 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == uid;
     }
 
+    function isMemberOf(coachingId) {
+      return isAdminOf(coachingId) || isApprovedStudentOf(coachingId) || isSuperAdmin();
+    }
+
     // ── /users collection ──────────────────────────────────────
     match /users/{userId} {
       // Users can read their own profile; super admin can read all
-      allow read: if isOwner(userId) || isSuperAdmin();
+      allow read: if isOwner(userId) || isSuperAdmin() || isAdmin();
 
       // Anyone signed in can create their own profile (on registration)
       allow create: if isSignedIn() && request.auth.uid == userId;
@@ -59,8 +63,8 @@ service cloud.firestore {
 
     // ── /coachings collection ──────────────────────────────────
     match /coachings/{coachingId} {
-      // Any signed-in user can read coaching details (for search/join)
-      allow read: if isSignedIn();
+      // PUBLIC: any visitor (including unauthenticated) can read coaching listings
+      allow read: if true;
 
       // Only the admin of this coaching or super admin can write
       allow create: if isSignedIn(); // creation is done on registration
@@ -69,25 +73,20 @@ service cloud.firestore {
 
       // ── /coachings/{coachingId}/joinRequests ────────────────
       match /joinRequests/{requestId} {
-        // Admin of this coaching can read/write requests
         allow read:   if isAdminOf(coachingId) || isSuperAdmin();
-        // Any signed-in user can CREATE a request (to join)
         allow create: if isSignedIn();
-        // Only admin can UPDATE (approve/reject)
         allow update: if isAdminOf(coachingId) || isSuperAdmin();
         allow delete: if isAdminOf(coachingId) || isSuperAdmin();
       }
 
       // ── /coachings/{coachingId}/students ────────────────────
       match /students/{studentId} {
-        // Only approved students and admin can read
         allow read:  if isAdminOf(coachingId) || isApprovedStudentOf(coachingId) || isSuperAdmin();
         allow write: if isAdminOf(coachingId) || isSuperAdmin();
       }
 
       // ── /coachings/{coachingId}/fees ────────────────────────
       match /fees/{feeId} {
-        // Admin reads all fees; student reads only their own
         allow read: if isAdminOf(coachingId)
           || isSuperAdmin()
           || (isApprovedStudentOf(coachingId) && resource.data.studentId == request.auth.uid);
@@ -96,7 +95,6 @@ service cloud.firestore {
 
       // ── /coachings/{coachingId}/classes ─────────────────────
       match /classes/{classId} {
-        // Approved students and admin can read
         allow read:  if isAdminOf(coachingId) || isApprovedStudentOf(coachingId) || isSuperAdmin();
         allow write: if isAdminOf(coachingId) || isSuperAdmin();
       }
@@ -104,7 +102,6 @@ service cloud.firestore {
       // ── /coachings/{coachingId}/workshops ───────────────────
       match /workshops/{workshopId} {
         allow read:  if isAdminOf(coachingId) || isApprovedStudentOf(coachingId) || isSuperAdmin();
-        // Students can update (enroll), admin can do everything
         allow create: if isAdminOf(coachingId) || isSuperAdmin();
         allow update: if isAdminOf(coachingId) || isApprovedStudentOf(coachingId) || isSuperAdmin();
         allow delete: if isAdminOf(coachingId) || isSuperAdmin();
@@ -114,6 +111,62 @@ service cloud.firestore {
       match /transactions/{txId} {
         allow read:  if isAdminOf(coachingId) || isSuperAdmin();
         allow write: if isAdminOf(coachingId) || isSuperAdmin();
+      }
+
+      // ── /coachings/{coachingId}/announcements ───────────────
+      match /announcements/{announcementId} {
+        allow read:   if isMemberOf(coachingId);
+        allow create: if isAdminOf(coachingId) || isSuperAdmin();
+        allow update: if isAdminOf(coachingId) || isSuperAdmin();
+        allow delete: if isAdminOf(coachingId) || isSuperAdmin();
+      }
+
+      // ── /coachings/{coachingId}/attendance ──────────────────
+      match /attendance/{date} {
+        // Admin reads/writes all attendance; student reads their own (checked client-side)
+        allow read:  if isAdminOf(coachingId) || isApprovedStudentOf(coachingId) || isSuperAdmin();
+        allow write: if isAdminOf(coachingId) || isSuperAdmin();
+      }
+
+      // ── /coachings/{coachingId}/materials ───────────────────
+      match /materials/{materialId} {
+        allow read:   if isMemberOf(coachingId);
+        allow create: if isAdminOf(coachingId) || isSuperAdmin();
+        allow update: if isAdminOf(coachingId) || isSuperAdmin();
+        allow delete: if isAdminOf(coachingId) || isSuperAdmin();
+      }
+
+      // ── /coachings/{coachingId}/homework ────────────────────
+      match /homework/{homeworkId} {
+        allow read:   if isMemberOf(coachingId);
+        allow create: if isAdminOf(coachingId) || isSuperAdmin();
+        // Allow student to update (submit) their own field
+        allow update: if isAdminOf(coachingId) || isSuperAdmin()
+          || (isApprovedStudentOf(coachingId)
+              && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['submissions']));
+        allow delete: if isAdminOf(coachingId) || isSuperAdmin();
+      }
+
+      // ── /coachings/{coachingId}/tests ───────────────────────
+      match /tests/{testId} {
+        allow read:   if isMemberOf(coachingId);
+        allow create: if isAdminOf(coachingId) || isSuperAdmin();
+        allow update: if isAdminOf(coachingId) || isSuperAdmin()
+          // Allow incrementing attempt count
+          || (isApprovedStudentOf(coachingId)
+              && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['attemptCount']));
+        allow delete: if isAdminOf(coachingId) || isSuperAdmin();
+      }
+
+      // ── /coachings/{coachingId}/testAttempts ─────────────────
+      match /testAttempts/{attemptId} {
+        allow read:   if isAdminOf(coachingId) || isSuperAdmin()
+          || (isApprovedStudentOf(coachingId) && resource.data.studentId == request.auth.uid);
+        allow create: if isApprovedStudentOf(coachingId);
+        allow update: if isSuperAdmin();
+        allow delete: if isAdminOf(coachingId) || isSuperAdmin();
       }
     }
   }

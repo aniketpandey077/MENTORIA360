@@ -12,6 +12,7 @@ import {
 import { formatCurrency, formatDate, computeFeeStats, exportToCSV } from "../../utils/helpers";
 import Modal from "../shared/Modal";
 import Icon from "../shared/Icon";
+import FeeReceipt from "../shared/FeeReceipt";
 import toast from "react-hot-toast";
 
 const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
@@ -23,6 +24,8 @@ export default function AdminFees() {
   const [students, setStudents] = useState([]);
   const [loading,  setLoading]  = useState(true);
   const [showAdd,  setShowAdd]  = useState(false);
+  const [receipt,  setReceipt]  = useState(null);
+  const [coaching, setCoachingInfo] = useState(null);
   const [form,     setForm]     = useState({ studentId: "", amount: "", month: "", year: String(new Date().getFullYear()) });
 
   const load = async () => {
@@ -31,6 +34,7 @@ export default function AdminFees() {
     const f  = await getCoachingFees(profile.coachingId);
     setStudents(s);
     setFees(f);
+    setCoachingInfo(c);
     setLoading(false);
   };
   useEffect(() => { load(); }, []);
@@ -150,6 +154,11 @@ export default function AdminFees() {
                         Mark Paid
                       </button>
                     )}
+                    {f.paid > 0 && (
+                      <button className="btn btn-secondary btn-sm" style={{ marginLeft: 6 }} onClick={() => setReceipt(f)}>
+                        🧾 Receipt
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -191,6 +200,16 @@ export default function AdminFees() {
           <button className="btn btn-secondary" onClick={() => setShowAdd(false)}>Cancel</button>
         </div>
       </Modal>
+
+      {/* Fee Receipt Modal */}
+      {receipt && (
+        <FeeReceipt
+          fee={receipt}
+          coachingName={coaching?.name}
+          coachingCity={coaching?.city}
+          onClose={() => setReceipt(null)}
+        />
+      )}
     </div>
   );
 }

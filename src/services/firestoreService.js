@@ -9,7 +9,10 @@ import {
   collection, query, where, getDocs, addDoc,
   serverTimestamp, orderBy, limit, writeBatch,
 } from "firebase/firestore";
-import { db } from "./firebase";
+import {
+  ref, uploadBytesResumable, getDownloadURL, deleteObject,
+} from "firebase/storage";
+import { db, storage } from "./firebase";
 
 /* ── USER OPERATIONS ──────────────────────────────────────── */
 
@@ -314,5 +317,211 @@ export async function getTransactions(coachingId) {
 
 export async function getAllUsers() {
   const snap = await getDocs(collection(db, "users"));
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+/* ── ANNOUNCEMENTS ────────────────────────────────────────── */
+
+export async function createAnnouncement(coachingId, data) {
+  await addDoc(collection(db, "coachings", coachingId, "announcements"), {
+    ...data,
+    createdAt: serverTimestamp(),
+  });
+}
+
+export async function getAnnouncements(coachingId) {
+  try {
+    const q = query(
+      collection(db, "coachings", coachingId, "announcements"),
+      orderBy("pinned", "desc"),
+      orderBy("createdAt", "desc")
+    );
+    const snap = await getDocs(q);
+    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  } catch {
+    // Fallback if composite index not ready
+    const snap = await getDocs(collection(db, "coachings", coachingId, "announcements"));
+    return snap.docs.map(d => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
+  }
+}
+
+export async function deleteAnnouncement(coachingId, announcementId) {
+  await deleteDoc(doc(db, "coachings", coachingId, "announcements", announcementId));
+}
+
+export async function pinAnnouncement(coachingId, announcementId, pinned) {
+  await updateDoc(doc(db, "coachings", coachingId, "announcements", announcementId), { pinned });
+}
+
+/* ── ATTENDANCE ───────────────────────────────────────────── */
+
+/**
+ * Save attendance for a given date.
+ * records = { [uid]: "present" | "absent" | "late" }
+ */
+export async function markAttendance(coachingId, date, records) {
+  await setDoc(doc(db, "coachings", coachingId, "attendance", date), {
+    date,
+    records,
+    updatedAt: serverTimestamp(),
+  });
+}
+
+export async function getAttendanceForDate(coachingId, date) {
+  const snap = await getDoc(doc(db, "coachings", coachingId, "attendance", date));
+  return snap.exists() ? snap.data() : null;
+}
+
+/**
+ * Fetch all attendance records where this student appears.
+ * Returns [{date, status}]
+ */
+export async function getStudentAttendanceHistory(coachingId, studentId) {
+  const snap = await getDocs(collection(db, "coachings", coachingId, "attendance"));
+  const result = [];
+  snap.docs.forEach(d => {
+    const data = d.data();
+    const status = data.records?.[studentId];
+    if (status) result.push({ date: data.date || d.id, status });
+  });
+  return result.sort((a, b) => b.date.localeCompare(a.date));
+}
+
+/* ── STUDY MATERIALS ──────────────────────────────────────── */
+
+export async function uploadMaterial(coachingId, data, onProgress) {
+  let downloadUrl = data.videoUrl || null;
+  let storagePath = null;
+
+  if (data.file) {
+    storagePath = `coachings/${coachingId}/materials/${Date.now()}_${data.file.name}`;
+    const storageRef = ref(storage, storagePath);
+    await new Promise((resolve, reject) => {
+      const task = uploadBytesResumable(storageRef, data.file);
+      task.on("state_changed",
+        snap => onProgress && onProgress(Math.round((snap.bytesTransferred / snap.totalBytes) * 100)),
+        reject,
+        async () => { downloadUrl = await getDownloadURL(task.snapshot.ref); resolve(); }
+      );
+    });
+  }
+
+  await addDoc(collection(db, "coachings", coachingId, "materials"), {
+    title:       data.title,
+    subject:     data.subject,
+    type:        data.type,
+    description: data.description || "",
+    downloadUrl,
+    storagePath,
+    authorName:  data.authorName,
+    uploadedAt:  serverTimestamp(),
+  });
+}
+
+export async function getMaterials(coachingId) {
+  const q = query(
+    collection(db, "coachings", coachingId, "materials"),
+    orderBy("uploadedAt", "desc")
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+export async function deleteMaterial(coachingId, materialId, storagePath) {
+  await deleteDoc(doc(db, "coachings", coachingId, "materials", materialId));
+  if (storagePath) {
+    try { await deleteObject(ref(storage, storagePath)); } catch {}
+  }
+}
+
+/* ── HOMEWORK ──────────────────────────────────────────────── */
+
+export async function createHomework(coachingId, data) {
+  await addDoc(collection(db, "coachings", coachingId, "homework"), {
+    ...data,
+    submissions: {},
+    createdAt: serverTimestamp(),
+  });
+}
+
+export async function getHomework(coachingId) {
+  const q = query(
+    collection(db, "coachings", coachingId, "homework"),
+    orderBy("createdAt", "desc")
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+export async function deleteHomework(coachingId, homeworkId) {
+  await deleteDoc(doc(db, "coachings", coachingId, "homework", homeworkId));
+}
+
+export async function submitHomework(coachingId, homeworkId, submission) {
+  await updateDoc(doc(db, "coachings", coachingId, "homework", homeworkId), {
+    [`submissions.${submission.studentId}`]: {
+      studentName: submission.studentName,
+      note:        submission.note || "",
+      submittedAt: serverTimestamp(),
+    },
+  });
+}
+
+/* ── TESTS / QUIZZES ──────────────────────────────────────── */
+
+export async function createTest(coachingId, data) {
+  await addDoc(collection(db, "coachings", coachingId, "tests"), {
+    ...data,
+    attemptCount: 0,
+    createdAt: serverTimestamp(),
+  });
+}
+
+export async function getTests(coachingId) {
+  const q = query(
+    collection(db, "coachings", coachingId, "tests"),
+    orderBy("createdAt", "desc")
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+export async function deleteTest(coachingId, testId) {
+  await deleteDoc(doc(db, "coachings", coachingId, "tests", testId));
+}
+
+export async function submitTestAttempt(coachingId, attempt) {
+  const batch = writeBatch(db);
+
+  const attemptRef = doc(collection(db, "coachings", coachingId, "testAttempts"));
+  batch.set(attemptRef, { ...attempt, submittedAt: serverTimestamp() });
+
+  // Increment attempt counter on the test
+  const testRef = doc(db, "coachings", coachingId, "tests", attempt.testId);
+  const testSnap = await getDoc(testRef);
+  if (testSnap.exists()) {
+    batch.update(testRef, { attemptCount: (testSnap.data().attemptCount || 0) + 1 });
+  }
+
+  await batch.commit();
+}
+
+export async function getTestAttempts(coachingId, testId) {
+  const q = query(
+    collection(db, "coachings", coachingId, "testAttempts"),
+    where("testId", "==", testId),
+    orderBy("score", "desc")
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+export async function getStudentAttempts(coachingId, studentId) {
+  const q = query(
+    collection(db, "coachings", coachingId, "testAttempts"),
+    where("studentId", "==", studentId)
+  );
+  const snap = await getDocs(q);
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
