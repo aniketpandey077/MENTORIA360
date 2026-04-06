@@ -124,7 +124,7 @@ export async function getJoinRequests(coachingId) {
  * Approve a join request:
  * 1. Update request status to "approved"
  * 2. Add student UID to coaching's students array
- * 3. Update student's profile with coachingId and approved status
+ * 3. Update student's profile with coachingIds[] array (multi-coaching support, max 5)
  */
 export async function approveJoinRequest(coachingId, requestId, studentId) {
   const batch = writeBatch(db);
@@ -142,11 +142,18 @@ export async function approveJoinRequest(coachingId, requestId, studentId) {
     students: [...(coaching.students || []), studentId],
   });
 
-  // Update student profile
-  batch.update(doc(db, "users", studentId), {
-    coachingId,
-    status: "approved",
-  });
+  // Update student profile — add to coachingIds array (multi-coaching, max 5)
+  const studentProfile = await getUserProfile(studentId);
+  const existing = studentProfile?.coachingIds || (studentProfile?.coachingId ? [studentProfile.coachingId] : []);
+  if (!existing.includes(coachingId) && existing.length < 5) {
+    batch.update(doc(db, "users", studentId), {
+      coachingIds: [...existing, coachingId],
+      coachingId:  coachingId, // keep for backward compat
+      status: "approved",
+    });
+  } else {
+    batch.update(doc(db, "users", studentId), { status: "approved" });
+  }
 
   await batch.commit();
 }
@@ -310,13 +317,6 @@ export async function getTransactions(coachingId) {
     limit(50)
   );
   const snap = await getDocs(q);
-  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
-}
-
-/* ── SUPER ADMIN ──────────────────────────────────────────── */
-
-export async function getAllUsers() {
-  const snap = await getDocs(collection(db, "users"));
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 
@@ -524,4 +524,133 @@ export async function getStudentAttempts(coachingId, studentId) {
   );
   const snap = await getDocs(q);
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+/* -- TUTOR PROFILES ----------------------------------------- */
+
+export async function upsertTutorProfile(uid, data) {
+  await setDoc(doc(db, "tutors", uid), {
+    ...data, uid, updatedAt: serverTimestamp(),
+  }, { merge: true });
+}
+
+export async function getTutorProfile(uid) {
+  const snap = await getDoc(doc(db, "tutors", uid));
+  return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+}
+
+export async function getAllTutors() {
+  const snap = await getDocs(collection(db, "tutors"));
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+/* -- REVIEWS ------------------------------------------------ */
+
+export async function addCoachingReview(coachingId, reviewData) {
+  await addDoc(collection(db, "coachings", coachingId, "reviews"), {
+    ...reviewData, createdAt: serverTimestamp(),
+  });
+  const allReviews = await getCoachingReviews(coachingId);
+  const avg = allReviews.reduce((s, r) => s + (r.rating || 0), 0) / (allReviews.length || 1);
+  await updateDoc(doc(db, "coachings", coachingId), {
+    avgRating: Math.round(avg * 10) / 10,
+    reviewCount: allReviews.length,
+  });
+}
+
+export async function getCoachingReviews(coachingId) {
+  try {
+    const q = query(collection(db, "coachings", coachingId, "reviews"), orderBy("createdAt", "desc"));
+    const snap = await getDocs(q);
+    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  } catch {
+    const snap = await getDocs(collection(db, "coachings", coachingId, "reviews"));
+    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  }
+}
+
+export async function addTutorReview(tutorUid, reviewData) {
+  await addDoc(collection(db, "tutors", tutorUid, "reviews"), {
+    ...reviewData, createdAt: serverTimestamp(),
+  });
+  const allReviews = await getTutorReviews(tutorUid);
+  const avg = allReviews.reduce((s, r) => s + (r.rating || 0), 0) / (allReviews.length || 1);
+  await updateDoc(doc(db, "tutors", tutorUid), {
+    avgRating: Math.round(avg * 10) / 10,
+    reviewCount: allReviews.length,
+  });
+}
+
+export async function getTutorReviews(tutorUid) {
+  try {
+    const q = query(collection(db, "tutors", tutorUid, "reviews"), orderBy("createdAt", "desc"));
+    const snap = await getDocs(q);
+    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  } catch {
+    const snap = await getDocs(collection(db, "tutors", tutorUid, "reviews"));
+    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  }
+}
+
+/* -- PAYMENT METHODS ---------------------------------------- */
+
+export async function addPaymentMethod(entityType, entityId, data) {
+  const collRef = entityType === "tutor"
+    ? collection(db, "tutors", entityId, "paymentMethods")
+    : collection(db, "coachings", entityId, "paymentMethods");
+  await addDoc(collRef, { ...data, createdAt: serverTimestamp() });
+}
+
+export async function getPaymentMethods(entityType, entityId) {
+  const collRef = entityType === "tutor"
+    ? collection(db, "tutors", entityId, "paymentMethods")
+    : collection(db, "coachings", entityId, "paymentMethods");
+  const snap = await getDocs(collRef);
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+export async function deletePaymentMethod(entityType, entityId, methodId) {
+  const docRef = entityType === "tutor"
+    ? doc(db, "tutors", entityId, "paymentMethods", methodId)
+    : doc(db, "coachings", entityId, "paymentMethods", methodId);
+  await deleteDoc(docRef);
+}
+
+/* -- MULTI-COACHING ----------------------------------------- */
+
+export async function getStudentCoachings(studentProfile) {
+  const ids = studentProfile?.coachingIds
+    || (studentProfile?.coachingId ? [studentProfile.coachingId] : []);
+  if (!ids.length) return [];
+  const results = await Promise.all(ids.map(id => getCoaching(id)));
+  return results.filter(Boolean);
+}
+
+export async function leaveCoaching(coachingId, studentId) {
+  const [coaching, studentProfile] = await Promise.all([
+    getCoaching(coachingId),
+    getUserProfile(studentId),
+  ]);
+  const updatedStudents = (coaching.students || []).filter(id => id !== studentId);
+  const updatedIds = (studentProfile?.coachingIds || []).filter(id => id !== coachingId);
+  const batch = writeBatch(db);
+  batch.update(doc(db, "coachings", coachingId), { students: updatedStudents });
+  batch.update(doc(db, "users", studentId), {
+    coachingIds: updatedIds,
+    coachingId: updatedIds[0] || null,
+    status: updatedIds.length > 0 ? "approved" : "removed",
+  });
+  await batch.commit();
+}
+
+/* -- SUPER ADMIN -------------------------------------------- */
+
+export async function getAllUsers() {
+  try {
+    const snap = await getDocs(collection(db, "users"));
+    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  } catch (error) {
+    console.error("getAllUsers error:", error);
+    return [];
+  }
 }

@@ -191,13 +191,18 @@ export default function AuthScreen({ initialTab = "login", initialRegRole = "stu
   const { login, register, loginWithGoogle, sendPhoneOTP, verifyPhoneOTP, refreshProfile } = useAuth();
 
   const [tab,     setTab]     = useState(initialTab);
-  const [regRole, setRegRole] = useState(initialRegRole === "admin" ? "admin" : "student");
+  const [regRole, setRegRole] = useState(
+    initialRegRole === "admin"  ? "admin"  :
+    initialRegRole === "tutor" ? "tutor"  :
+    "student"
+  );
   const [step,    setStep]    = useState(1);
   const [loginMode, setLoginMode] = useState("email"); // "email" | "phone"
 
   const [form, setForm] = useState({
     email: "", password: "", name: "",
-    coachingName: "", city: "", subject: "", phone: "",
+    coachingName: "", city: "", state: "", address: "", pincode: "",
+    subject: "", phone: "", yearsExp: "",
   });
 
   // Phone auth state
@@ -337,19 +342,33 @@ export default function AuthScreen({ initialTab = "login", initialRegRole = "stu
     } finally { setLoading(false); }
   };
 
-  // ── Email Register ───────────────────────────────────────
+  // ── Email Register ───────────────────────────────────────────────────
   const handleRegister = async () => {
     setError(""); setLoading(true);
     try {
-      if (regRole === "admin") {
-        const user = await register(form.email, form.password, form.name, "admin", { coachingId: null });
-        const coachingId = await createCoaching({
-          name: form.coachingName, city: form.city, subject: form.subject,
-          phone: form.phone, whatsapp: form.phone, adminId: user.uid,
-        });
-        await updateUserProfile(user.uid, { coachingId });
+      if (regRole === "admin" || regRole === "tutor") {
+        const role = regRole;
+        if (role === "admin" && (!form.coachingName || !form.city)) {
+          setError("Institute name and city are required."); setLoading(false); return;
+        }
+        const user = await register(form.email, form.password, form.name, role, { coachingId: null });
+        if (role === "admin") {
+          const coachingId = await createCoaching({
+            name:     form.coachingName,
+            city:     form.city,
+            state:    form.state,
+            address:  form.address,
+            pincode:  form.pincode,
+            subject:  form.subject,
+            phone:    form.phone,
+            whatsapp: form.phone,
+            yearsExp: form.yearsExp ? Number(form.yearsExp) : 0,
+            adminId:  user.uid,
+          });
+          await updateUserProfile(user.uid, { coachingId });
+        }
         await refreshProfile();
-        toast.success("Institute registered! Welcome.");
+        toast.success(role === "admin" ? "Institute registered! Welcome." : "Account created! Set up your tutor profile.");
       } else {
         if (step === 1) {
           if (!form.name || !form.email || !form.password) {
@@ -411,10 +430,10 @@ export default function AuthScreen({ initialTab = "login", initialRegRole = "stu
               </button>
             )}
             <h1 style={{ fontFamily: "Syne, sans-serif", fontSize: 40, fontWeight: 800, color: "var(--accent2)" }}>
-              EduPulse
-            </h1>
+              Mentoria360
+              </h1>
             <p style={{ color: "var(--text2)", fontSize: 13, marginTop: 4 }}>
-              Coaching Institute Management Platform
+              Coaching &amp; Tutor Discovery Platform
             </p>
           </div>
 
@@ -480,26 +499,26 @@ export default function AuthScreen({ initialTab = "login", initialRegRole = "stu
                     </button>
                   </>
                 ) : loginMode === "email" ? (
-                  <>
+                  <form onSubmit={e => { e.preventDefault(); handleLogin(); }} autoComplete="off">
                     <div className="form-group">
                       <label className="form-label">Email</label>
-                      <input type="email" placeholder="your@email.com" value={form.email} onChange={set("email")} />
+                      <input type="email" placeholder="your@email.com" value={form.email} onChange={set("email")} autoComplete="username" />
                     </div>
                     <div className="form-group">
                       <label className="form-label">Password</label>
-                      <input type="password" placeholder="••••••••" value={form.password} onChange={set("password")}
-                        onKeyDown={e => e.key === "Enter" && handleLogin()} />
+                      <input type="password" placeholder="••••••••" value={form.password} onChange={set("password")} autoComplete="current-password" />
                     </div>
-                    <button className="btn btn-primary btn-full btn-lg" onClick={handleLogin} disabled={loading}>
+                    <button type="submit" className="btn btn-primary btn-full btn-lg" disabled={loading}>
                       {loading ? <span className="spinner" /> : "Sign In"}
                     </button>
                     <button
+                      type="button"
                       style={{ background: "none", border: "none", color: "var(--accent)", fontSize: 12, cursor: "pointer", marginTop: 12, width: "100%", textAlign: "center" }}
                       onClick={() => { setForgotPw(true); setError(""); }}
                     >
                       Forgot password?
                     </button>
-                  </>
+                  </form>
                 ) : (
                   /* Phone login */
                   <>
@@ -587,15 +606,12 @@ export default function AuthScreen({ initialTab = "login", initialRegRole = "stu
 
                 {/* Role */}
                 <div className="tab-bar">
-                  <button className={`tab${regRole === "student" ? " active" : ""}`} onClick={() => { setRegRole("student"); setStep(1); setError(""); }}>
-                    Student
-                  </button>
-                  <button className={`tab${regRole === "admin" ? " active" : ""}`} onClick={() => { setRegRole("admin"); setStep(1); setError(""); }}>
-                    Coaching Admin
-                  </button>
+                  <button className={`tab${regRole === "student" ? " active" : ""}`} onClick={() => { setRegRole("student"); setStep(1); setError(""); }}>Student</button>
+                  <button className={`tab${regRole === "admin"   ? " active" : ""}`} onClick={() => { setRegRole("admin");   setStep(1); setError(""); }}>Coaching Admin</button>
+                  <button className={`tab${regRole === "tutor"   ? " active" : ""}`} onClick={() => { setRegRole("tutor");   setStep(1); setError(""); }}>Tutor</button>
                 </div>
 
-                {/* Admin */}
+                {/* Admin form */}
                 {regRole === "admin" && (
                   <>
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
@@ -612,29 +628,81 @@ export default function AuthScreen({ initialTab = "login", initialRegRole = "stu
                       <label className="form-label">Password</label>
                       <input type="password" placeholder="Min. 6 characters" value={form.password} onChange={set("password")} />
                     </div>
-                    <div style={{ fontSize: 11, color: "var(--text3)", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                      Institute Details
+                    <div style={{ fontSize: 11, color: "var(--text3)", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.06em" }}>Institute Details</div>
+                    <div className="form-group">
+                      <label className="form-label">Institute Name *</label>
+                      <input placeholder="e.g. Brilliant Minds Institute" value={form.coachingName} onChange={set("coachingName")} />
                     </div>
                     <div className="form-group">
-                      <label className="form-label">Institute Name</label>
-                      <input placeholder="e.g. Brilliant Minds Institute" value={form.coachingName} onChange={set("coachingName")} />
+                      <label className="form-label">Full Address</label>
+                      <input placeholder="Street, Area, Landmark" value={form.address} onChange={set("address")} />
                     </div>
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                       <div className="form-group">
-                        <label className="form-label">City</label>
+                        <label className="form-label">City *</label>
                         <input placeholder="Delhi" value={form.city} onChange={set("city")} />
                       </div>
+                      <div className="form-group">
+                        <label className="form-label">State</label>
+                        <input placeholder="Delhi" value={form.state} onChange={set("state")} />
+                      </div>
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                      <div className="form-group">
+                        <label className="form-label">Pincode</label>
+                        <input placeholder="110001" value={form.pincode} onChange={set("pincode")} />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">Years of Experience</label>
+                        <input type="number" placeholder="e.g. 10" value={form.yearsExp} onChange={set("yearsExp")} min={0} />
+                      </div>
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                       <div className="form-group">
                         <label className="form-label">Subject Focus</label>
                         <input placeholder="IIT-JEE / NEET" value={form.subject} onChange={set("subject")} />
                       </div>
-                    </div>
-                    <div className="form-group">
-                      <label className="form-label">WhatsApp / Phone</label>
-                      <input placeholder="9876543210" value={form.phone} onChange={set("phone")} />
+                      <div className="form-group">
+                        <label className="form-label">WhatsApp / Phone</label>
+                        <input placeholder="9876543210" value={form.phone} onChange={set("phone")} />
+                      </div>
                     </div>
                     <button className="btn btn-primary btn-full" onClick={handleRegister} disabled={loading}>
                       {loading ? <span className="spinner" /> : "Register Institute →"}
+                    </button>
+                  </>
+                )}
+
+                {/* Tutor form */}
+                {regRole === "tutor" && (
+                  <>
+                    <div className="alert alert-info" style={{ fontSize: 12 }}>
+                      👨‍🏫 You'll register a standard account and then complete your tutor profile from the dashboard.
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Full Name</label>
+                      <input placeholder="Your name" value={form.name} onChange={set("name")} />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Email</label>
+                      <input type="email" placeholder="you@email.com" value={form.email} onChange={set("email")} />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Password</label>
+                      <input type="password" placeholder="Min. 6 characters" value={form.password} onChange={set("password")} />
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                      <div className="form-group">
+                        <label className="form-label">Phone</label>
+                        <input placeholder="9876543210" value={form.phone} onChange={set("phone")} />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">City</label>
+                        <input placeholder="Delhi" value={form.city} onChange={set("city")} />
+                      </div>
+                    </div>
+                    <button className="btn btn-primary btn-full" onClick={handleRegister} disabled={loading}>
+                      {loading ? <span className="spinner" /> : "Create Tutor Account →"}
                     </button>
                   </>
                 )}

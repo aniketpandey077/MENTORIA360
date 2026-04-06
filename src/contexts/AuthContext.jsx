@@ -29,15 +29,29 @@ export function AuthProvider({ children }) {
   // Listen for Firebase Auth state changes
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (firebaseUser) {
-        setUser(firebaseUser);
-        const p = await getUserProfile(firebaseUser.uid);
-        setProfile(p);
-      } else {
+      try {
+        if (firebaseUser) {
+          setUser(firebaseUser);
+          try {
+            const p = await getUserProfile(firebaseUser.uid);
+            setProfile(p);
+          } catch (profileErr) {
+            console.error("Failed to load user profile:", profileErr);
+            // Profile load failed — user is authenticated but we can't get their profile.
+            // Set profile to null so UI shows auth screen or a recovery option.
+            setProfile(null);
+          }
+        } else {
+          setUser(null);
+          setProfile(null);
+        }
+      } catch (err) {
+        console.error("Auth state change error:", err);
         setUser(null);
         setProfile(null);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     });
     return unsubscribe;
   }, []);

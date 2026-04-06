@@ -1,11 +1,11 @@
 // src/components/superadmin/SuperAdminDashboard.jsx
 // ============================================================
 // Platform-level overview for the super admin.
-// Manages all institutes, users, and platform analytics.
+// Manages all institutes, tutors, users, and platform analytics.
 // ============================================================
 
 import React, { useEffect, useState } from "react";
-import { getAllCoachings, getAllUsers } from "../../services/firestoreService";
+import { getAllCoachings, getAllUsers, getAllTutors } from "../../services/firestoreService";
 import { formatDate } from "../../utils/helpers";
 import toast from "react-hot-toast";
 
@@ -30,14 +30,21 @@ function StatCard({ label, value, icon, color }) {
 export default function SuperAdminDashboard({ active }) {
   const [coachings, setCoachings] = useState([]);
   const [users,     setUsers]     = useState([]);
+  const [tutors,    setTutors]    = useState([]);
   const [loading,   setLoading]   = useState(true);
   const [search,    setSearch]    = useState("");
 
   useEffect(() => {
+    // Load coachings + users first (critical), tutors gracefully
     Promise.all([getAllCoachings(), getAllUsers()])
       .then(([c, u]) => { setCoachings(c); setUsers(u); })
       .catch(() => toast.error("Failed to load data — check Firestore rules."))
       .finally(() => setLoading(false));
+
+    // Tutors load independently — failure here won’t blank the page
+    getAllTutors()
+      .then(t => setTutors(t))
+      .catch(() => {}); // tutors collection may not exist yet
   }, []);
 
   if (loading) return (
@@ -62,7 +69,7 @@ export default function SuperAdminDashboard({ active }) {
       <div className="fade-in">
         <div className="page-header">
           <h2>🚀 Platform Overview</h2>
-          <p>EduPulse multi-tenant coaching management platform</p>
+          <p>Mentoria360 multi-tenant coaching management platform</p>
         </div>
 
         {/* Stats */}
@@ -73,6 +80,7 @@ export default function SuperAdminDashboard({ active }) {
           <StatCard label="Enrolled Students" value={totalStudentsEnrolled}     icon="✅"  color="var(--blue)"  />
           <StatCard label="Pending Approvals" value={pending.length}            icon="⏳"  color="var(--amber)" />
           <StatCard label="Platform Users"    value={users.length}              icon="👥"  color="var(--text)"  />
+          <StatCard label="Tutors"            value={tutors.length}             icon="👨‍🏫" color="#a78bfa" />
         </div>
 
         {/* Quick Insights */}
@@ -240,6 +248,81 @@ export default function SuperAdminDashboard({ active }) {
               </div>
             );
           })}
+        </div>
+      </div>
+    );
+  }
+
+  // ── Tutors section ───────────────────────────────────────────────
+  if (active === "tutors") {
+    const filteredTutors = tutors.filter(t => {
+      const q = search.toLowerCase();
+      return !q || t.name?.toLowerCase().includes(q) || t.subject?.toLowerCase().includes(q) || t.city?.toLowerCase().includes(q);
+    });
+
+    return (
+      <div className="fade-in">
+        <div className="page-header">
+          <h2>👨‍🏫 All Tutors</h2>
+          <p>{tutors.length} registered tutors on the platform</p>
+        </div>
+        <div className="search-wrap" style={{ marginBottom: 20 }}>
+          <span className="search-icon">🔍</span>
+          <input placeholder="Search by name, subject, city..." value={search} onChange={e => setSearch(e.target.value)} />
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {filteredTutors.length === 0 && (
+            <div className="card empty-state"><div className="emoji">👨‍🏫</div><p>No tutors found</p></div>
+          )}
+          {filteredTutors.map(t => (
+            <div key={t.id} className="card">
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16 }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+                    <div style={{
+                      width: 42, height: 42, borderRadius: "50%",
+                      background: "linear-gradient(135deg, #8b5cf6, #ec4899)",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      fontSize: 18, fontWeight: 700, color: "#fff",
+                    }}>
+                      {t.name?.[0]?.toUpperCase() || "T"}
+                    </div>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: 15 }}>{t.name}</div>
+                      <div style={{ fontSize: 12, color: "var(--text3)" }}>📍 {t.city || "—"}</div>
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", gap: 14, flexWrap: "wrap", fontSize: 12, color: "var(--text2)" }}>
+                    {t.subject  && <span>📚 {t.subject}</span>}
+                    {t.yearsExp > 0 && <span>🕐 {t.yearsExp} years exp</span>}
+                    {t.phone    && <span>📞 {t.phone}</span>}
+                    {t.avgRating && <span>⭐ {t.avgRating} ({t.reviewCount || 0} reviews)</span>}
+                  </div>
+                  {t.bio && <p style={{ fontSize: 12, color: "var(--text2)", marginTop: 8, maxWidth: 500 }}>{t.bio.slice(0, 120)}...</p>}
+                </div>
+                <span className="badge badge-approved">Active</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // ── Reviews section (platform-wide) ─────────────────────────────────
+  if (active === "reviews") {
+    return (
+      <div className="fade-in">
+        <div className="page-header">
+          <h2>⭐ Reviews Overview</h2>
+          <p>Platform-wide reviews are stored per coaching / per tutor in Firestore</p>
+        </div>
+        <div className="card">
+          <div style={{ textAlign: "center", padding: "40px 20px" }}>
+            <div style={{ fontSize: 48, marginBottom: 12 }}>⭐</div>
+            <p style={{ color: "var(--text2)" }}>Reviews are stored in each Coaching and Tutor subcollection.</p>
+            <p style={{ fontSize: 12, color: "var(--text3)", marginTop: 8 }}>Use the Institutes or Tutors section to view individual reviews.</p>
+          </div>
         </div>
       </div>
     );

@@ -1,11 +1,7 @@
 /* ============================================================
-   EduPulse Global Styles
+   Mentoria360 Global Styles
    Dark-first design system
    ============================================================ */
-
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
 
 /* Google Fonts already loaded in index.html */
 
@@ -315,9 +311,32 @@ tbody tr:hover td { background: var(--bg3); }
   position: fixed;
   left: 0;
   top: 0;
-  z-index: 50;
+  z-index: 150;
+  transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
 }
 .main-content { margin-left: 220px; padding: 32px; min-height: 100vh; }
+
+/* ── Mobile sidebar jumper button ──────────────────────────── */
+.sidebar-jumper { display: none; }
+
+@media (max-width: 768px) {
+  .sidebar {
+    transform: translateX(-100%);
+    z-index: 150;
+    box-shadow: 4px 0 30px rgba(0,0,0,0.5);
+  }
+  .sidebar.sidebar-mobile-open {
+    transform: translateX(0);
+  }
+  .main-content {
+    margin-left: 0;
+    padding: 20px 16px 80px;
+  }
+  .sidebar-jumper {
+    display: flex !important;
+  }
+  .stats-grid { grid-template-columns: repeat(2, 1fr); }
+}
 
 .nav-item {
   display: flex;
@@ -348,8 +367,34 @@ tbody tr:hover td { background: var(--bg3); }
 /* ── Animations ─────────────────────────────────────────────── */
 @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 .fade-in { animation: fadeIn 0.25s ease; }
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
+@keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+.slide-up { animation: slideUp 0.3s ease; }
 
 /* ── Search bar ─────────────────────────────────────────────── */
 .search-wrap { position: relative; }
 .search-wrap input { padding-left: 36px; }
 .search-icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text3); pointer-events: none; }
+
+/* ── Star Rating ─────────────────────────────────────────────── */
+.star-rating { display: flex; gap: 2px; align-items: center; }
+.star { font-size: 14px; cursor: pointer; transition: transform 0.1s; }
+.star:hover { transform: scale(1.2); }
+.star.filled { color: #f59e0b; }
+.star.empty { color: var(--border2); }
+
+/* ── Review card ─────────────────────────────────────────────── */
+.review-card {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 14px 16px;
+  margin-bottom: 10px;
+}
+
+/* ── Promo banner pulse ──────────────────────────────────────── */
+@keyframes glow {
+  0%,100% { box-shadow: 0 0 20px rgba(108,99,255,0.3); }
+  50% { box-shadow: 0 0 40px rgba(108,99,255,0.6); }
+}
+.promo-glow { animation: glow 3s ease-in-out infinite; }

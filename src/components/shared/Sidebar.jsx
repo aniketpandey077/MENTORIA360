@@ -1,9 +1,10 @@
 // src/components/shared/Sidebar.jsx
 // ============================================================
 // Navigation sidebar. Renders different nav items by role.
+// Mobile-responsive: toggled by a floating jumper button.
 // ============================================================
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import Icon from "./Icon";
 import { getInitials } from "../../utils/helpers";
 
@@ -11,7 +12,9 @@ const NAV = {
   superadmin: [
     { key: "dashboard",  icon: "dashboard",  label: "Overview" },
     { key: "institutes", icon: "school",     label: "Institutes" },
+    { key: "tutors",     icon: "tutor",      label: "Tutors" },
     { key: "users",      icon: "users",      label: "All Users" },
+    { key: "reviews",    icon: "star",       label: "Reviews" },
   ],
   admin: [
     { key: "dashboard",      icon: "dashboard",  label: "Dashboard" },
@@ -25,6 +28,13 @@ const NAV = {
     { key: "workshops",      icon: "workshop",    label: "Workshops" },
     { key: "materials",      icon: "material",    label: "Study Materials" },
     { key: "announcements",  icon: "announce",    label: "Announcements" },
+    { key: "payments",       icon: "fee",         label: "Payment Methods" },
+  ],
+  tutor: [
+    { key: "dashboard",      icon: "dashboard",  label: "Dashboard" },
+    { key: "profile",        icon: "profile",    label: "My Profile" },
+    { key: "payments",       icon: "fee",        label: "Payment Methods" },
+    { key: "reviews",        icon: "star",       label: "My Reviews" },
   ],
   student: [
     { key: "dashboard",      icon: "dashboard",  label: "My Dashboard" },
@@ -37,79 +47,176 @@ const NAV = {
     { key: "workshops",      icon: "workshop",   label: "Workshops" },
     { key: "materials",      icon: "material",   label: "Study Materials" },
     { key: "announcements",  icon: "announce",   label: "Announcements" },
+    { key: "payments",       icon: "fee",        label: "Payment Methods" },
+    { key: "reviews",        icon: "star",       label: "Write Review" },
   ],
 };
 
 const ROLE_LABEL = {
   superadmin: "Platform Admin",
   admin:      "Institute Admin",
+  tutor:      "Tutor",
   student:    "Student",
 };
 
 export default function Sidebar({ role, active, setActive, profile, onLogout, pendingCount = 0 }) {
   const navItems = NAV[role] || [];
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  // Close sidebar on route change (mobile)
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [active]);
+
+  // Close sidebar when clicking outside (mobile)
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const handler = (e) => {
+      if (!e.target.closest(".sidebar") && !e.target.closest(".sidebar-jumper")) {
+        setMobileOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [mobileOpen]);
+
+  const handleNavClick = (key) => {
+    setActive(key);
+    setMobileOpen(false);
+  };
 
   return (
-    <div className="sidebar">
-      {/* Logo */}
-      <div style={{ padding: "24px 20px", borderBottom: "1px solid var(--border)" }}>
-        <h1 style={{ fontFamily: "Syne, sans-serif", fontSize: 22, fontWeight: 800, color: "var(--accent2)" }}>
-          EduPulse
-        </h1>
-        <p style={{ fontSize: 11, color: "var(--text3)", marginTop: 2 }}>
-          {ROLE_LABEL[role] || "User"}
-        </p>
-      </div>
+    <>
+      {/* ── Mobile overlay ─────────────────────────────────── */}
+      {mobileOpen && (
+        <div
+          onClick={() => setMobileOpen(false)}
+          style={{
+            position: "fixed", inset: 0, zIndex: 149,
+            background: "rgba(0,0,0,0.55)", backdropFilter: "blur(4px)",
+          }}
+        />
+      )}
 
-      {/* Navigation */}
-      <div style={{ padding: "8px 0", flex: 1, overflowY: "auto" }}>
-        <div className="nav-section">Navigation</div>
-        {navItems.map(item => (
-          <button
-            key={item.key}
-            className={`nav-item${active === item.key ? " active" : ""}`}
-            onClick={() => setActive(item.key)}
-          >
-            <NavIcon name={item.icon} size={15} />
-            <span style={{ flex: 1 }}>{item.label}</span>
-            {/* Badge for pending requests */}
-            {item.key === "requests" && pendingCount > 0 && (
-              <span style={{
-                background: "var(--red)", color: "#fff",
-                borderRadius: 10, fontSize: 10,
-                padding: "1px 7px", fontWeight: 600,
-              }}>
-                {pendingCount}
-              </span>
-            )}
-          </button>
-        ))}
-      </div>
+      {/* ── Floating jumper button (mobile only) ─────────── */}
+      <button
+        className="sidebar-jumper"
+        onClick={() => setMobileOpen(o => !o)}
+        title={mobileOpen ? "Close menu" : "Open menu"}
+        style={{
+          position: "fixed",
+          bottom: 22,
+          left: 22,
+          zIndex: 200,
+          width: 50,
+          height: 50,
+          borderRadius: "50%",
+          background: "linear-gradient(135deg, var(--accent), #8b5cf6)",
+          border: "none",
+          cursor: "pointer",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          boxShadow: "0 4px 20px rgba(99,102,241,0.5)",
+          transition: "transform 0.2s, box-shadow 0.2s",
+          // Only visible on small screens — handled via @media in CSS
+        }}
+        onMouseEnter={e => { e.currentTarget.style.transform = "scale(1.1)"; }}
+        onMouseLeave={e => { e.currentTarget.style.transform = "scale(1)"; }}
+        aria-label="Toggle navigation"
+      >
+        {mobileOpen ? (
+          // X icon
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="#fff">
+            <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+          </svg>
+        ) : (
+          // Menu / grid icon
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="#fff">
+            <path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/>
+          </svg>
+        )}
+      </button>
 
-      {/* User info + logout */}
-      <div style={{ borderTop: "1px solid var(--border)", padding: "12px 0" }}>
-        <div style={{ padding: "8px 20px", display: "flex", gap: 10, alignItems: "center" }}>
-          <div className="avatar" style={{ width: 34, height: 34, fontSize: 12 }}>
-            {getInitials(profile?.name || "U")}
-          </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 12, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-              {profile?.name || "User"}
+      {/* ── Sidebar panel ─────────────────────────────────── */}
+      <div
+        className={`sidebar${mobileOpen ? " sidebar-mobile-open" : ""}`}
+        style={{ zIndex: 150 }}
+      >
+        {/* Logo */}
+        <div style={{ padding: "24px 20px", borderBottom: "1px solid var(--border)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{
+              width: 32, height: 32,
+              background: "linear-gradient(135deg, var(--accent), #8b5cf6)",
+              borderRadius: 8,
+              display: "flex", alignItems: "center", justifyContent: "center",
+            }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="#fff">
+                <path d="M12 3L1 9l11 6 9-4.91V17h2V9L12 3zm-2 11.5v3.5L12 19l2-1v-3.5L12 16l-2-1.5z"/>
+              </svg>
             </div>
-            <div style={{ fontSize: 10, color: "var(--text3)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-              {profile?.email || ""}
+            <div>
+              <h1 style={{ fontFamily: "Syne, sans-serif", fontSize: 18, fontWeight: 800, color: "var(--accent2)", lineHeight: 1 }}>
+                Mentoria360
+              </h1>
+              <p style={{ fontSize: 10, color: "var(--text3)", marginTop: 2 }}>
+                {ROLE_LABEL[role] || "User"}
+              </p>
             </div>
           </div>
         </div>
-        <button className="nav-item" onClick={onLogout}>
-          <NavIcon name="logout" size={14} /> Sign Out
-        </button>
+
+        {/* Navigation */}
+        <div style={{ padding: "8px 0", flex: 1, overflowY: "auto" }}>
+          <div className="nav-section">Navigation</div>
+          {navItems.map(item => (
+            <button
+              key={item.key}
+              className={`nav-item${active === item.key ? " active" : ""}`}
+              onClick={() => handleNavClick(item.key)}
+            >
+              <NavIcon name={item.icon} size={15} />
+              <span style={{ flex: 1 }}>{item.label}</span>
+              {/* Badge for pending requests */}
+              {item.key === "requests" && pendingCount > 0 && (
+                <span style={{
+                  background: "var(--red)", color: "#fff",
+                  borderRadius: 10, fontSize: 10,
+                  padding: "1px 7px", fontWeight: 600,
+                }}>
+                  {pendingCount}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+
+        {/* User info + logout */}
+        <div style={{ borderTop: "1px solid var(--border)", padding: "12px 0" }}>
+          <div style={{ padding: "8px 20px", display: "flex", gap: 10, alignItems: "center" }}>
+            <div className="avatar" style={{ width: 34, height: 34, fontSize: 12 }}>
+              {getInitials(profile?.name || "U")}
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 12, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                {profile?.name || "User"}
+              </div>
+              <div style={{ fontSize: 10, color: "var(--text3)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                {profile?.email || profile?.phone || ""}
+              </div>
+            </div>
+          </div>
+          <button className="nav-item" onClick={onLogout}>
+            <NavIcon name="logout" size={14} /> Sign Out
+          </button>
+        </div>
       </div>
-    </div>
+    </>
   );
 }
 
-// Extended icon component with new icons
+// Extended icon component with all icons
 function NavIcon({ name, size = 16 }) {
   const icons = {
     dashboard: "M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z",
@@ -122,13 +229,14 @@ function NavIcon({ name, size = 16 }) {
     logout:    "M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z",
     download:  "M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z",
     plus:      "M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z",
-    // New icons:
     calendar:  "M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM7 10h5v5H7z",
     material:  "M9 3L5 6.99h3V14h2V6.99h3L9 3zm7 14.01V10h-2v7.01h-3L15 21l4-3.99h-3z",
     homework:  "M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z",
     test:      "M9 3L5 6.99h3V14h2V6.99h3L9 3zm7 14.01V10h-2v7.01h-3L15 21l4-3.99h-3zM4 10.5H2v2h2v-2zm0-4H2v2h2v-2zm0 8H2v2h2v-2zm0 4H2v2h2v-2z",
     announce:  "M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z",
     profile:   "M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z",
+    tutor:     "M20 17c0 1.1-.9 2-2 2H4l-4 4V5c0-1.1.9-2 2-2h16c1.1 0 2 .9 2 2v12zM6 9v2h12V9H6zm0 4v2h8v-2H6z",
+    star:      "M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z",
   };
 
   const path = icons[name] || icons.dashboard;
