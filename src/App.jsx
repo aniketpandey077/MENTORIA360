@@ -6,9 +6,10 @@
 //   → App:    Dashboard by role (admin / student / superadmin / tutor)
 // ============================================================
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Toaster } from "react-hot-toast";
 import { useAuth } from "./contexts/AuthContext";
+import { getStudentCoachings } from "./services/firestoreService";
 
 // Public
 import LandingPage from "./components/public/LandingPage";
@@ -199,22 +200,38 @@ function AdminLayout({ profile, logout }) {
 // ── Student layout ─────────────────────────────────────────────
 function StudentLayout({ profile, logout }) {
   const [active, setActive] = useState("dashboard");
+  const [coachings,        setCoachings]        = useState([]);
+  const [activeCoachingId, setActiveCoachingId] = useState(
+    profile?.coachingIds?.[0] || profile?.coachingId || null
+  );
+
+  // Re-load coachings whenever profile changes (e.g. after joining one)
+  useEffect(() => {
+    getStudentCoachings(profile).then(list => {
+      setCoachings(list);
+      // If activeCoachingId is no longer valid, reset to first
+      if (list.length > 0 && !list.find(c => c.id === activeCoachingId)) {
+        setActiveCoachingId(list[0].id);
+      }
+    }).catch(() => {});
+  }, [profile?.coachingIds?.join(","), profile?.coachingId]);
 
   const renderPage = () => {
+    const cid = activeCoachingId;
     switch (active) {
-      case "dashboard":     return <StudentDashboard setActive={setActive} />;
-      case "classes":       return <StudentClasses />;
-      case "fees":          return <StudentFees />;
-      case "workshops":     return <StudentWorkshops />;
-      case "announcements": return <StudentAnnouncements />;
-      case "attendance":    return <StudentAttendance />;
-      case "materials":     return <StudentMaterials />;
-      case "homework":      return <StudentHomework />;
-      case "tests":         return <StudentTests />;
-      case "profile":       return <StudentProfile />;
-      case "payments":      return <StudentPaymentPage />;
-      case "reviews":       return <StudentReviews />;
-      default:              return <StudentDashboard setActive={setActive} />;
+      case "dashboard":     return <StudentDashboard setActive={setActive} coachings={coachings} activeCoachingId={cid} setActiveCoachingId={setActiveCoachingId} />;
+      case "classes":       return <StudentClasses activeCoachingId={cid} />;  
+      case "fees":          return <StudentFees activeCoachingId={cid} />;  
+      case "workshops":     return <StudentWorkshops activeCoachingId={cid} />;
+      case "announcements": return <StudentAnnouncements activeCoachingId={cid} />;
+      case "attendance":    return <StudentAttendance activeCoachingId={cid} />;  
+      case "materials":     return <StudentMaterials activeCoachingId={cid} />;
+      case "homework":      return <StudentHomework activeCoachingId={cid} />;
+      case "tests":         return <StudentTests activeCoachingId={cid} />;
+      case "profile":       return <StudentProfile coachings={coachings} setCoachings={setCoachings} activeCoachingId={cid} setActiveCoachingId={setActiveCoachingId} />;
+      case "payments":      return <StudentPaymentPage activeCoachingId={cid} />;
+      case "reviews":       return <StudentReviews activeCoachingId={cid} />;
+      default:              return <StudentDashboard setActive={setActive} coachings={coachings} activeCoachingId={cid} setActiveCoachingId={setActiveCoachingId} />;
     }
   };
 

@@ -60,13 +60,13 @@ function SocialProfileSetup({ firebaseUser, preSelectedCoaching, onComplete }) {
     finally { setSearching(false); }
   };
 
-  const handleComplete = async () => {
+  const handleComplete = async (skip = false) => {
     if (!name.trim()) { toast.error("Please enter your name."); return; }
     setLoading(true);
     try {
       if (role === "admin") {
         if (!form.coachingName || !form.city) { toast.error("Coaching name and city are required."); setLoading(false); return; }
-        const profileData = await createSocialProfile(firebaseUser, name, "admin", { coachingId: null });
+        await createSocialProfile(firebaseUser, name, "admin", { coachingId: null });
         const coachingId = await createCoaching({
           name: form.coachingName, city: form.city,
           subject: form.subject, phone: form.phone,
@@ -77,9 +77,17 @@ function SocialProfileSetup({ firebaseUser, preSelectedCoaching, onComplete }) {
         onComplete();
       } else {
         if (step === 1) { setStep(2); setLoading(false); return; }
-        if (!selectedCoaching) { toast.error("Please select a coaching institute."); setLoading(false); return; }
+        if (skip || !selectedCoaching) {
+          // Student skips coaching — register as independent
+          await createSocialProfile(firebaseUser, name, "student", {
+            coachingId: null, coachingIds: [], status: "independent",
+          });
+          toast.success("Account created! You can join a coaching anytime from your profile.");
+          onComplete();
+          return;
+        }
         await createSocialProfile(firebaseUser, name, "student", {
-          requestedCoachingId: selectedCoaching.id, coachingId: null, status: "pending",
+          requestedCoachingId: selectedCoaching.id, coachingId: null, coachingIds: [], status: "pending",
         });
         await createJoinRequest(selectedCoaching.id, {
           studentId: firebaseUser.uid, studentName: name, studentEmail: firebaseUser.email || "",
@@ -178,9 +186,19 @@ function SocialProfileSetup({ firebaseUser, preSelectedCoaching, onComplete }) {
           </>
         )}
 
-        <button className="btn btn-primary btn-full" onClick={handleComplete} disabled={loading} style={{ marginTop: 8 }}>
-          {loading ? <span className="spinner" /> : role === "admin" ? "Create Institute →" : step === 1 ? "Next: Select Coaching →" : "Send Join Request →"}
+        <button className="btn btn-primary btn-full" onClick={() => handleComplete(false)} disabled={loading} style={{ marginTop: 8 }}>
+          {loading ? <span className="spinner" /> : role === "admin" ? "Create Institute →" : step === 1 ? "Next: Select Coaching →" : selectedCoaching ? "Send Join Request →" : "Skip for Now →"}
         </button>
+        {role === "student" && step === 2 && selectedCoaching && (
+          <button
+            className="btn btn-secondary btn-full"
+            onClick={() => handleComplete(true)}
+            disabled={loading}
+            style={{ marginTop: 8, fontSize: 12 }}
+          >
+            Skip — I'll join a coaching later
+          </button>
+        )}
       </div>
     </div>
   );
@@ -394,15 +412,20 @@ export default function AuthScreen({ initialTab = "login", initialRegRole = "stu
           setStep(2); setLoading(false); return;
         }
         if (!selectedCoaching) {
-          setError("Please select a coaching institute."); setLoading(false); return;
+          // Student skips coaching — register as independent
+          await register(form.email, form.password, form.name, "student", {
+            coachingId: null, coachingIds: [], status: "independent",
+          });
+          toast.success("Account created! You can join a coaching anytime from your profile.");
+        } else {
+          const user = await register(form.email, form.password, form.name, "student", {
+            requestedCoachingId: selectedCoaching.id, coachingId: null, coachingIds: [], status: "pending",
+          });
+          await createJoinRequest(selectedCoaching.id, {
+            studentId: user.uid, studentName: form.name, studentEmail: form.email,
+          });
+          toast.success("Join request sent! Awaiting approval.");
         }
-        const user = await register(form.email, form.password, form.name, "student", {
-          requestedCoachingId: selectedCoaching.id, coachingId: null, status: "pending",
-        });
-        await createJoinRequest(selectedCoaching.id, {
-          studentId: user.uid, studentName: form.name, studentEmail: form.email,
-        });
-        toast.success("Join request sent! Awaiting approval.");
       }
     } catch (err) {
       setError(
@@ -745,7 +768,7 @@ export default function AuthScreen({ initialTab = "login", initialRegRole = "stu
                   </>
                 )}
 
-                {/* Student step 2 */}
+                {/* Student step 2 — optional coaching selection */}
                 {regRole === "student" && step === 2 && (
                   <>
                     <p style={{ fontSize: 13, color: "var(--text2)", marginBottom: 12 }}>
@@ -802,9 +825,19 @@ export default function AuthScreen({ initialTab = "login", initialRegRole = "stu
                       </div>
                     )}
 
-                    <button className="btn btn-primary btn-full" onClick={handleRegister} disabled={loading || !selectedCoaching}>
-                      {loading ? <span className="spinner" /> : "Send Join Request →"}
+                    <button className="btn btn-primary btn-full" onClick={handleRegister} disabled={loading}>
+                      {loading ? <span className="spinner" /> : selectedCoaching ? "Send Join Request →" : "Skip — Join Later →"}
                     </button>
+                    {selectedCoaching && (
+                      <button
+                        className="btn btn-secondary btn-full"
+                        style={{ marginTop: 8, fontSize: 12 }}
+                        onClick={() => { setSelectedCoaching(null); handleRegister(); }}
+                        disabled={loading}
+                      >
+                        Skip — I'll join a coaching later
+                      </button>
+                    )}
                     <button className="btn btn-secondary btn-full" style={{ marginTop: 8, fontSize: 13 }} onClick={() => { setStep(1); setError(""); }}>
                       ← Back
                     </button>
