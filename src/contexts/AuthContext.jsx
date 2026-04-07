@@ -26,6 +26,7 @@ const AuthContext = createContext(null);
 export function AuthProvider({ children }) {
   const [user,    setUser]    = useState(null);
   const [profile, setProfile] = useState(null);
+  const [profileError, setProfileError] = useState(false);
   const [loading, setLoading] = useState(true);
 
   // Listen for Firebase Auth state changes + handle Google redirect result
@@ -36,6 +37,7 @@ export function AuthProvider({ children }) {
         const firebaseUser = result.user;
         setUser(firebaseUser);
         try {
+          setProfileError(false);
           let p = await getUserProfile(firebaseUser.uid);
           if (!p) {
             // New user via redirect — profile will be set after social setup
@@ -43,7 +45,7 @@ export function AuthProvider({ children }) {
           } else {
             setProfile(p);
           }
-        } catch { setProfile(null); }
+        } catch { setProfileError(true); setProfile(null); }
       }
     }).catch(() => {});
 
@@ -52,20 +54,24 @@ export function AuthProvider({ children }) {
         if (firebaseUser) {
           setUser(firebaseUser);
           try {
+            setProfileError(false);
             const p = await getUserProfile(firebaseUser.uid);
             setProfile(p);
           } catch (profileErr) {
             console.error("Failed to load user profile:", profileErr);
+            setProfileError(true);
             setProfile(null);
           }
         } else {
           setUser(null);
           setProfile(null);
+          setProfileError(false);
         }
       } catch (err) {
         console.error("Auth state change error:", err);
         setUser(null);
         setProfile(null);
+        setProfileError(false);
       } finally {
         setLoading(false);
       }
@@ -196,15 +202,23 @@ export function AuthProvider({ children }) {
   // ── Refresh Profile ─────────────────────────────────────────
   async function refreshProfile() {
     if (user) {
-      const p = await getUserProfile(user.uid);
-      setProfile(p);
-      return p;
+      try {
+        setProfileError(false);
+        const p = await getUserProfile(user.uid);
+        setProfile(p);
+        return p;
+      } catch (err) {
+        setProfileError(true);
+        setProfile(null);
+        throw err;
+      }
     }
   }
 
   const value = {
     user,
     profile,
+    profileError,
     loading,
     register,
     login,

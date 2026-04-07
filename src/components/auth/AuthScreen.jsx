@@ -187,7 +187,7 @@ function SocialProfileSetup({ firebaseUser, preSelectedCoaching, onComplete }) {
 }
 
 // ── Main AuthScreen ─────────────────────────────────────────
-export default function AuthScreen({ initialTab = "login", initialRegRole = "student", preSelectedCoaching = null, onGoHome }) {
+export default function AuthScreen({ initialTab = "login", initialRegRole = "student", preSelectedCoaching = null, onGoHome, forceProfileSetupUser = null }) {
   const { login, register, loginWithGoogle, sendPhoneOTP, verifyPhoneOTP, refreshProfile } = useAuth();
 
   const [tab,     setTab]     = useState(initialTab);
@@ -225,7 +225,7 @@ export default function AuthScreen({ initialTab = "login", initialRegRole = "stu
   const [resetting,  setResetting]  = useState(false);
 
   // New social user setup
-  const [newSocialUser, setNewSocialUser] = useState(null);
+  const [newSocialUser, setNewSocialUser] = useState(forceProfileSetupUser);
 
   const set = (key) => (e) => setForm(f => ({ ...f, [key]: e.target.value }));
   const switchTab = (t) => { setTab(t); setError(""); setStep(1); setSelectedCoaching(preSelectedCoaching || null); setLoginMode("email"); setPhoneStep(1); };

@@ -262,7 +262,7 @@ function SuperAdminLayout({ profile, logout }) {
 
 // ── Root App ──────────────────────────────────────────────────
 export default function App() {
-  const { user, profile, loading, logout, refreshProfile } = useAuth();
+  const { user, profile, loading, logout, refreshProfile, profileError } = useAuth();
 
   // Auth screen state — null = show landing page, "login"/"register"/"register-admin"/"register-tutor" = show auth
   const [authView,          setAuthView]           = useState(null);
@@ -283,8 +283,8 @@ export default function App() {
     );
   }
 
-  // User is authenticated but profile failed to load — show recovery screen
-  if (user && !profile) {
+  // User is authenticated but profile load failed via error
+  if (user && profileError) {
     return (
       <>
         <Toaster {...TOASTER_CONFIG} />
@@ -293,7 +293,21 @@ export default function App() {
     );
   }
 
-  // Auth screen (login / register)
+  // User is authenticated but profile is missing (incomplete setup)
+  if (user && !profile && !profileError) {
+    return (
+      <>
+        <Toaster {...TOASTER_CONFIG} />
+        <AuthScreen
+          forceProfileSetupUser={user}
+          preSelectedCoaching={preSelectCoaching}
+          onGoHome={() => { logout(); setAuthView(null); setPreSelectCoaching(null); }}
+        />
+      </>
+    );
+  }
+
+  // Auth screen (login / register / incomplete setup)
   if (authView) {
     return (
       <>
