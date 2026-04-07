@@ -10,7 +10,7 @@ import { getMaterials } from "../../services/firestoreService";
 const SUBJECTS   = ["All", "Mathematics", "Physics", "Chemistry", "Biology", "English", "Computer Science", "General"];
 const TYPE_ICON  = { PDF: "📄", "Video Link": "🎥", Notes: "📝", Assignment: "📋", Other: "📁" };
 
-export default function StudentMaterials() {
+export default function StudentMaterials({ activeCoachingId }) {
   const { profile } = useAuth();
   const [materials, setMaterials] = useState([]);
   const [loading,   setLoading]   = useState(true);
@@ -18,11 +18,11 @@ export default function StudentMaterials() {
   const [search,    setSearch]    = useState("");
 
   useEffect(() => {
-    if (!profile?.coachingId) { setLoading(false); return; }
-    getMaterials(profile.coachingId)
+    if (!activeCoachingId) { setLoading(false); return; }
+    getMaterials(activeCoachingId)
       .then(setMaterials)
       .finally(() => setLoading(false));
-  }, []);
+  }, [activeCoachingId]);
 
   const filtered = materials
     .filter(m => filter === "All" || m.subject === filter)

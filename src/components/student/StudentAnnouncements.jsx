@@ -13,16 +13,16 @@ const CAT_COLOR = {
   Holiday: "var(--green)", Event: "var(--accent2)", Urgent: "var(--red)",
 };
 
-export default function StudentAnnouncements() {
+export default function StudentAnnouncements({ activeCoachingId }) {
   const { profile } = useAuth();
   const [items,   setItems]   = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!profile?.coachingId) { setLoading(false); return; }
+    if (!activeCoachingId) { setLoading(false); return; }
 
     const q = query(
-      collection(db, "coachings", profile.coachingId, "announcements"),
+      collection(db, "coachings", activeCoachingId, "announcements"),
       orderBy("pinned", "desc"),
       orderBy("createdAt", "desc")
     );
@@ -33,7 +33,7 @@ export default function StudentAnnouncements() {
     }, () => setLoading(false));
 
     return unsub;
-  }, [profile?.coachingId]);
+  }, [activeCoachingId]);
 
   return (
     <div className="fade-in">

@@ -38,7 +38,7 @@ const OrDivider = () => (
 );
 
 // ── New Social User Setup Modal ─────────────────────────────
-function SocialProfileSetup({ firebaseUser, preSelectedCoaching, onComplete }) {
+function SocialProfileSetup({ firebaseUser, preSelectedCoaching, onComplete, onCancel }) {
   const { createSocialProfile, loginWithGoogle } = useAuth();
   const [role,    setRole]    = useState("student");
   const [name,    setName]    = useState(firebaseUser?.displayName || "");
@@ -199,6 +199,14 @@ function SocialProfileSetup({ firebaseUser, preSelectedCoaching, onComplete }) {
             Skip — I'll join a coaching later
           </button>
         )}
+        <button
+          className="btn btn-secondary btn-full"
+          onClick={onCancel}
+          disabled={loading}
+          style={{ marginTop: 8, fontSize: 13, background: "transparent", color: "var(--text3)", border: "none" }}
+        >
+          Cancel & Go Back
+        </button>
       </div>
     </div>
   );
@@ -206,7 +214,7 @@ function SocialProfileSetup({ firebaseUser, preSelectedCoaching, onComplete }) {
 
 // ── Main AuthScreen ─────────────────────────────────────────
 export default function AuthScreen({ initialTab = "login", initialRegRole = "student", preSelectedCoaching = null, onGoHome, forceProfileSetupUser = null }) {
-  const { login, register, loginWithGoogle, sendPhoneOTP, verifyPhoneOTP, refreshProfile } = useAuth();
+  const { login, register, loginWithGoogle, sendPhoneOTP, verifyPhoneOTP, refreshProfile, logout } = useAuth();
 
   const [tab,     setTab]     = useState(initialTab);
   const [regRole, setRegRole] = useState(
@@ -449,6 +457,10 @@ export default function AuthScreen({ initialTab = "login", initialRegRole = "stu
           firebaseUser={newSocialUser}
           preSelectedCoaching={preSelectedCoaching}
           onComplete={() => setNewSocialUser(null)}
+          onCancel={async () => {
+            await logout();
+            setNewSocialUser(null);
+          }}
         />
       )}
 

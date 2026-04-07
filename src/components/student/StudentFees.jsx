@@ -41,15 +41,16 @@ function ManualPayModal({ fee, coaching, profile, onClose, onPaid }) {
     if (!amount || amount <= 0) { toast.error("Enter a valid amount."); return; }
     setPaying(true);
     try {
+      const cid = fee.coachingId || profile.coachingId;
       if (amount >= fee.due) {
-        await markFeePaid(fee.coachingId || profile.coachingId, fee.id, {
+        await markFeePaid(cid, fee.id, {
           studentId:   profile.uid,
           studentName: profile.name,
           amount:      fee.amount,
           month:       fee.month,
         });
       } else {
-        await recordPartialPayment(fee.coachingId || profile.coachingId, fee.id, (fee.paid || 0) + Number(amount), fee.amount);
+        await recordPartialPayment(cid, fee.id, (fee.paid || 0) + Number(amount), fee.amount);
       }
       setDone(true);
       toast.success("Payment recorded! Admin will confirm shortly.");
@@ -231,14 +232,14 @@ async function startRazorpayPayment({ fee, coaching, profile, onSuccess }) {
     notes: {
       studentId:  profile.uid,
       feeId:      fee.id,
-      coachingId: profile.coachingId,
+      coachingId: activeCoachingId,
       month:      fee.month,
     },
     theme: { color: "#6366f1" },
     modal: { confirm_close: true },
     handler: async (response) => {
       try {
-        await markFeePaid(profile.coachingId, fee.id, {
+        await markFeePaid(activeCoachingId, fee.id, {
           studentId:   profile.uid,
           studentName: profile.name,
           amount:      fee.amount,
@@ -261,24 +262,24 @@ async function startRazorpayPayment({ fee, coaching, profile, onSuccess }) {
 }
 
 // ── Main Component ────────────────────────────────────────────
-export default function StudentFees() {
+export default function StudentFees({ activeCoachingId }) {
   const { profile } = useAuth();
   const [fees,     setFees]    = useState([]);
   const [loading,  setLoading] = useState(true);
   const [receipt,  setReceipt] = useState(null);
   const [coaching, setCoaching] = useState(null);
-  const [payFee,   setPayFee]  = useState(null);   // fee being paid
-  const [paying,   setPaying]  = useState(null);   // fee id being paid via Razorpay
+  const [payFee,   setPayFee]  = useState(null);
+  const [paying,   setPaying]  = useState(null);
 
   const load = () => {
-    if (!profile?.coachingId) { setLoading(false); return; }
+    if (!activeCoachingId) { setLoading(false); return; }
     Promise.all([
-      getStudentFees(profile.coachingId, profile.uid),
-      getCoaching(profile.coachingId),
+      getStudentFees(activeCoachingId, profile.uid),
+      getCoaching(activeCoachingId),
     ]).then(([f, c]) => { setFees(f); setCoaching(c); })
       .finally(() => setLoading(false));
   };
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [activeCoachingId]);
 
   const stats = computeFeeStats(fees);
 

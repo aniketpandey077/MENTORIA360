@@ -142,32 +142,50 @@ export async function approveJoinRequest(coachingId, requestId, studentId) {
     students: [...(coaching.students || []), studentId],
   });
 
-  // Update student profile — add to coachingIds array (multi-coaching, max 5)
+  // Update student profile — add to coachingIds, remove from pendingCoachingIds
   const studentProfile = await getUserProfile(studentId);
   const existing = studentProfile?.coachingIds || (studentProfile?.coachingId ? [studentProfile.coachingId] : []);
-  if (!existing.includes(coachingId) && existing.length < 5) {
-    batch.update(doc(db, "users", studentId), {
-      coachingIds: [...existing, coachingId],
-      coachingId:  coachingId, // keep for backward compat
-      status: "approved",
-    });
-  } else {
-    batch.update(doc(db, "users", studentId), { status: "approved" });
-  }
+  const pending  = studentProfile?.pendingCoachingIds || [];
+
+  const newCoachingIds = existing.includes(coachingId) ? existing : [...existing, coachingId];
+  const newPending     = pending.filter(id => id !== coachingId);
+
+  batch.update(doc(db, "users", studentId), {
+    coachingIds:        newCoachingIds,
+    coachingId:         newCoachingIds[0],   // keep backward compat
+    pendingCoachingIds: newPending,
+    status:             "approved",
+  });
 
   await batch.commit();
 }
 
 /**
  * Reject a join request.
+ * Only marks the request as rejected.
+ * Does NOT change the student's global status (they may be in other coachings).
+ * Removes coachingId from pendingCoachingIds on the student profile.
  */
 export async function rejectJoinRequest(coachingId, requestId, studentId) {
   const batch = writeBatch(db);
+
   batch.update(
     doc(db, "coachings", coachingId, "joinRequests", requestId),
     { status: "rejected" }
   );
-  batch.update(doc(db, "users", studentId), { status: "rejected" });
+
+  // Only remove from pending list, don't touch global status
+  const studentProfile = await getUserProfile(studentId);
+  const pending  = studentProfile?.pendingCoachingIds || [];
+  const enrolled = studentProfile?.coachingIds || [];
+  const newPending = pending.filter(id => id !== coachingId);
+
+  batch.update(doc(db, "users", studentId), {
+    pendingCoachingIds: newPending,
+    // Keep status as-is unless they have no coachings at all
+    ...(enrolled.length === 0 && newPending.length === 0 ? { status: "independent" } : {}),
+  });
+
   await batch.commit();
 }
 
@@ -175,14 +193,22 @@ export async function rejectJoinRequest(coachingId, requestId, studentId) {
 
 /**
  * Remove a student from a coaching.
+ * Updates both the coaching's students list and the student's coachingIds.
  */
 export async function removeStudent(coachingId, studentId) {
   const coaching = await getCoaching(coachingId);
   const updated = (coaching.students || []).filter(id => id !== studentId);
 
+  const studentProfile = await getUserProfile(studentId);
+  const updatedIds = (studentProfile?.coachingIds || []).filter(id => id !== coachingId);
+
   const batch = writeBatch(db);
   batch.update(doc(db, "coachings", coachingId), { students: updated });
-  batch.update(doc(db, "users", studentId), { coachingId: null, status: "removed" });
+  batch.update(doc(db, "users", studentId), {
+    coachingIds: updatedIds,
+    coachingId:  updatedIds[0] || null,
+    status:      updatedIds.length > 0 ? "approved" : "independent",
+  });
   await batch.commit();
 }
 
@@ -638,7 +664,7 @@ export async function leaveCoaching(coachingId, studentId) {
   batch.update(doc(db, "users", studentId), {
     coachingIds: updatedIds,
     coachingId: updatedIds[0] || null,
-    status: updatedIds.length > 0 ? "approved" : "removed",
+    status: updatedIds.length > 0 ? "approved" : "independent",
   });
   await batch.commit();
 }

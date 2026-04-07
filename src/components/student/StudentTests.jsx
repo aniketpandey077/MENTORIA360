@@ -8,21 +8,21 @@ import { useAuth } from "../../contexts/AuthContext";
 import { getTests, submitTestAttempt, getStudentAttempts } from "../../services/firestoreService";
 import toast from "react-hot-toast";
 
-export default function StudentTests() {
+export default function StudentTests({ activeCoachingId }) {
   const { profile } = useAuth();
   const [tests,     setTests]     = useState([]);
-  const [attempts,  setAttempts]  = useState({});   // { testId: attempt }
+  const [attempts,  setAttempts]  = useState({});
   const [loading,   setLoading]   = useState(true);
-  const [active,    setActive]    = useState(null);  // test being taken
-  const [answers,   setAnswers]   = useState({});    // { qIdx: optIdx }
+  const [active,    setActive]    = useState(null);
+  const [answers,   setAnswers]   = useState({});
   const [timeLeft,  setTimeLeft]  = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const timerRef = useRef(null);
 
   const load = async () => {
     try {
-      const list = await getTests(profile.coachingId);
-      const myAttempts = await getStudentAttempts(profile.coachingId, profile.uid);
+      const list = await getTests(activeCoachingId);
+      const myAttempts = await getStudentAttempts(activeCoachingId, profile.uid);
       const attMap = {};
       myAttempts.forEach(a => { attMap[a.testId] = a; });
       setTests(list);
@@ -31,9 +31,9 @@ export default function StudentTests() {
     finally { setLoading(false); }
   };
   useEffect(() => {
-    if (!profile?.coachingId) { setLoading(false); return; }
+    if (!activeCoachingId) { setLoading(false); return; }
     load();
-  }, []);
+  }, [activeCoachingId]);
 
   const startTest = (test) => {
     setActive(test);
@@ -66,7 +66,7 @@ export default function StudentTests() {
       });
       const score = Math.round((correct / active.questions.length) * 100);
 
-      await submitTestAttempt(profile.coachingId, {
+      await submitTestAttempt(activeCoachingId, {
         testId:      active.id,
         testTitle:   active.title,
         studentId:   profile.uid,

@@ -10,18 +10,18 @@ import { getStudentAttendanceHistory } from "../../services/firestoreService";
 const STATUS_EMOJI = { present: "✅", absent: "❌", late: "🕐" };
 const STATUS_COLOR = { present: "var(--green)", absent: "var(--red)", late: "var(--amber)" };
 
-export default function StudentAttendance() {
+export default function StudentAttendance({ activeCoachingId }) {
   const { profile } = useAuth();
-  const [records,  setRecords]  = useState([]);   // [{date, status}]
+  const [records,  setRecords]  = useState([]);
   const [loading,  setLoading]  = useState(true);
 
   useEffect(() => {
-    if (!profile?.coachingId) { setLoading(false); return; }
-    getStudentAttendanceHistory(profile.coachingId, profile.uid)
+    if (!activeCoachingId) { setLoading(false); return; }
+    getStudentAttendanceHistory(activeCoachingId, profile.uid)
       .then(setRecords)
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, []);
+  }, [activeCoachingId]);
 
   const total   = records.length;
   const present = records.filter(r => r.status === "present").length;

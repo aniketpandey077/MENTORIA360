@@ -3,16 +3,17 @@ import React, { useEffect, useState } from "react";
 import { useAuth } from "../../contexts/AuthContext";
 import { getClasses } from "../../services/firestoreService";
 
-export default function StudentClasses() {
+export default function StudentClasses({ activeCoachingId }) {
   const { profile } = useAuth();
   const [classes, setClasses] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    getClasses(profile.coachingId)
+    if (!activeCoachingId) { setLoading(false); return; }
+    getClasses(activeCoachingId)
       .then(setClasses)
       .finally(() => setLoading(false));
-  }, []);
+  }, [activeCoachingId]);
 
   const COLORS = ["var(--accent)", "var(--green)", "var(--blue)", "var(--amber)"];
 

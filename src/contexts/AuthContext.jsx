@@ -89,8 +89,10 @@ export function AuthProvider({ children }) {
       email,
       name,
       role,
+      // default status, but extra.status wins if provided
       status: role === "student" ? "pending" : "active",
-      ...extra,
+      coachingIds: [],
+      ...extra,           // extra.status overrides the default above
     };
 
     await createUserProfile(cred.user.uid, profileData);
@@ -147,8 +149,10 @@ export function AuthProvider({ children }) {
       phone:  firebaseUser.phoneNumber || "",
       name:   name || firebaseUser.displayName || "User",
       role,
-      status: role === "student" ? "pending" : "active",
-      ...extra,
+      // default status — but extra.status wins if provided (e.g. "independent")
+      status:      role === "student" ? "pending" : "active",
+      coachingIds: [],
+      ...extra,           // extra.status overrides the default above
     };
     await createUserProfile(firebaseUser.uid, profileData);
     setProfile(profileData);

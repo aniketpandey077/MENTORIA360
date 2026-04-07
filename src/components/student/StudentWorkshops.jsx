@@ -4,23 +4,24 @@ import { useAuth } from "../../contexts/AuthContext";
 import { getWorkshops, enrollInWorkshop } from "../../services/firestoreService";
 import toast from "react-hot-toast";
 
-export default function StudentWorkshops() {
+export default function StudentWorkshops({ activeCoachingId }) {
   const { profile } = useAuth();
   const [workshops, setWorkshops] = useState([]);
   const [loading,   setLoading]   = useState(true);
-  const [enrolled,  setEnrolled]  = useState(new Set()); // workshopIds enrolled locally
+  const [enrolled,  setEnrolled]  = useState(new Set());
 
   useEffect(() => {
-    getWorkshops(profile.coachingId)
+    if (!activeCoachingId) { setLoading(false); return; }
+    getWorkshops(activeCoachingId)
       .then(setWorkshops)
       .finally(() => setLoading(false));
-  }, []);
+  }, [activeCoachingId]);
 
   const handleEnroll = async (w) => {
     if (enrolled.has(w.id)) { toast("Already registered!"); return; }
     if ((w.enrolled || 0) >= w.seats) { toast.error("Workshop is full."); return; }
     try {
-      await enrollInWorkshop(profile.coachingId, w.id, w.enrolled || 0);
+      await enrollInWorkshop(activeCoachingId, w.id, w.enrolled || 0);
       setEnrolled(s => new Set([...s, w.id]));
       setWorkshops(ws => ws.map(x => x.id === w.id ? { ...x, enrolled: (x.enrolled || 0) + 1 } : x));
       toast.success(`Registered for "${w.title}"!`);

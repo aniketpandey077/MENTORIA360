@@ -8,7 +8,7 @@ import { useAuth } from "../../contexts/AuthContext";
 import { getHomework, submitHomework } from "../../services/firestoreService";
 import toast from "react-hot-toast";
 
-export default function StudentHomework() {
+export default function StudentHomework({ activeCoachingId }) {
   const { profile } = useAuth();
   const [homework,  setHomework]  = useState([]);
   const [loading,   setLoading]   = useState(true);
@@ -17,20 +17,20 @@ export default function StudentHomework() {
 
   const load = async () => {
     try {
-      const list = await getHomework(profile.coachingId);
+      const list = await getHomework(activeCoachingId);
       setHomework(list);
     } catch {}
     finally { setLoading(false); }
   };
   useEffect(() => {
-    if (!profile?.coachingId) { setLoading(false); return; }
+    if (!activeCoachingId) { setLoading(false); return; }
     load();
-  }, []);
+  }, [activeCoachingId]);
 
   const handleSubmit = async (hw) => {
     setSubmitting(hw.id);
     try {
-      await submitHomework(profile.coachingId, hw.id, {
+      await submitHomework(activeCoachingId, hw.id, {
         studentId:   profile.uid,
         studentName: profile.name,
         note:        notes[hw.id] || "",
