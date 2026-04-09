@@ -192,6 +192,37 @@ export async function rejectJoinRequest(coachingId, requestId, studentId) {
 /* ── STUDENT MANAGEMENT ───────────────────────────────────── */
 
 /**
+ * Add a student manually (offline) without them needing an account.
+ */
+export async function addOfflineStudent(coachingId, studentData) {
+  const batch = writeBatch(db);
+  const offlineId = "offline_" + Date.now() + "_" + Math.floor(Math.random() * 1000);
+
+  // 1. Create a dummy user profile
+  batch.set(doc(db, "users", offlineId), {
+    ...studentData,
+    role: "student",
+    isOffline: true,
+    coachingIds: [coachingId],
+    coachingId: coachingId,
+    status: "approved",
+    createdAt: serverTimestamp(),
+  });
+
+  // 2. Add to coaching's student list
+  const coachingRef = doc(db, "coachings", coachingId);
+  const coachingSnap = await getDoc(coachingRef);
+  if (coachingSnap.exists()) {
+    batch.update(coachingRef, {
+      students: [...(coachingSnap.data().students || []), offlineId],
+    });
+  }
+
+  await batch.commit();
+  return offlineId;
+}
+
+/**
  * Remove a student from a coaching.
  * Updates both the coaching's students list and the student's coachingIds.
  */
