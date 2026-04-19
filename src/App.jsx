@@ -6,52 +6,77 @@
 //   → App:    Dashboard by role (admin / student / superadmin / tutor)
 // ============================================================
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, lazy, Suspense } from "react";
 import { Toaster } from "react-hot-toast";
 import { useAuth } from "./contexts/AuthContext";
 import { getStudentCoachings } from "./services/firestoreService";
 
-// Public
+// Public (small — loaded eagerly)
 import LandingPage        from "./components/public/LandingPage";
 import AuthScreen         from "./components/auth/AuthScreen";
 import AnimatedBackground from "./components/public/AnimatedBackground";
 
 // Shared
-import Sidebar from "./components/shared/Sidebar";
+import Sidebar        from "./components/shared/Sidebar";
+import ErrorBoundary  from "./components/shared/ErrorBoundary";
+import OnboardingTour from "./components/shared/OnboardingTour";
 
-// Admin pages
-import AdminDashboard    from "./components/admin/AdminDashboard";
-import AdminStudents     from "./components/admin/AdminStudents";
-import AdminRequests     from "./components/admin/AdminRequests";
-import AdminFees         from "./components/admin/AdminFees";
-import AdminClasses      from "./components/admin/AdminClasses";
-import AdminWorkshops    from "./components/admin/AdminWorkshops";
-import AdminAnnouncements from "./components/admin/AdminAnnouncements";
-import AdminAttendance    from "./components/admin/AdminAttendance";
-import AdminMaterials     from "./components/admin/AdminMaterials";
-import AdminHomework      from "./components/admin/AdminHomework";
-import AdminTests         from "./components/admin/AdminTests";
-import AdminPaymentMethods from "./components/admin/AdminPaymentMethods";
+// ── Lazy-loaded dashboard pages ───────────────────────────────
+// These only download when the user actually visits that page,
+// reducing the initial JS bundle size significantly.
 
-// Student pages
-import StudentDashboard    from "./components/student/StudentDashboard";
-import StudentClasses      from "./components/student/StudentClasses";
-import StudentFees         from "./components/student/StudentFees";
-import StudentWorkshops    from "./components/student/StudentWorkshops";
-import StudentAnnouncements from "./components/student/StudentAnnouncements";
-import StudentAttendance    from "./components/student/StudentAttendance";
-import StudentMaterials     from "./components/student/StudentMaterials";
-import StudentHomework      from "./components/student/StudentHomework";
-import StudentTests         from "./components/student/StudentTests";
-import StudentProfile       from "./components/student/StudentProfile";
-import StudentPaymentPage   from "./components/student/StudentPaymentPage";
-import StudentReviews       from "./components/student/StudentReviews";
+// Admin
+const AdminDashboard     = lazy(() => import("./components/admin/AdminDashboard"));
+const AdminStudents      = lazy(() => import("./components/admin/AdminStudents"));
+const AdminRequests      = lazy(() => import("./components/admin/AdminRequests"));
+const AdminFees          = lazy(() => import("./components/admin/AdminFees"));
+const AdminClasses       = lazy(() => import("./components/admin/AdminClasses"));
+const AdminWorkshops     = lazy(() => import("./components/admin/AdminWorkshops"));
+const AdminAnnouncements = lazy(() => import("./components/admin/AdminAnnouncements"));
+const AdminAttendance    = lazy(() => import("./components/admin/AdminAttendance"));
+const AdminMaterials     = lazy(() => import("./components/admin/AdminMaterials"));
+const AdminHomework      = lazy(() => import("./components/admin/AdminHomework"));
+const AdminTests         = lazy(() => import("./components/admin/AdminTests"));
+const AdminPaymentMethods= lazy(() => import("./components/admin/AdminPaymentMethods"));
+const AdminBatches       = lazy(() => import("./components/admin/AdminBatches"));
+
+// Student
+const StudentDashboard    = lazy(() => import("./components/student/StudentDashboard"));
+const StudentClasses      = lazy(() => import("./components/student/StudentClasses"));
+const StudentFees         = lazy(() => import("./components/student/StudentFees"));
+const StudentWorkshops    = lazy(() => import("./components/student/StudentWorkshops"));
+const StudentAnnouncements= lazy(() => import("./components/student/StudentAnnouncements"));
+const StudentAttendance   = lazy(() => import("./components/student/StudentAttendance"));
+const StudentMaterials    = lazy(() => import("./components/student/StudentMaterials"));
+const StudentHomework     = lazy(() => import("./components/student/StudentHomework"));
+const StudentTests        = lazy(() => import("./components/student/StudentTests"));
+const StudentProfile      = lazy(() => import("./components/student/StudentProfile"));
+const StudentPaymentPage  = lazy(() => import("./components/student/StudentPaymentPage"));
+const StudentReviews      = lazy(() => import("./components/student/StudentReviews"));
 
 // Tutor
-import TutorDashboard from "./components/tutor/TutorDashboard";
+const TutorDashboard = lazy(() => import("./components/tutor/TutorDashboard"));
 
 // Super admin
-import SuperAdminDashboard from "./components/superadmin/SuperAdminDashboard";
+const SuperAdminDashboard = lazy(() => import("./components/superadmin/SuperAdminDashboard"));
+
+// ── Suspense fallback ─────────────────────────────────────────
+function PageLoader() {
+  return (
+    <div style={{
+      display: "flex", alignItems: "center", justifyContent: "center",
+      minHeight: "60vh", flexDirection: "column", gap: 16,
+    }}>
+      <div style={{
+        width: 36, height: 36, borderRadius: "50%",
+        border: "3px solid rgba(108,99,255,0.2)",
+        borderTop: "3px solid #6c63ff",
+        animation: "spin 0.9s linear infinite",
+      }} />
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+    </div>
+  );
+}
 
 // ── Shared toaster config ─────────────────────────────────────
 const TOASTER_CONFIG = {
@@ -162,6 +187,8 @@ function ProfileRecoveryScreen({ user, logout }) {
 // ── Admin layout ──────────────────────────────────────────────
 function AdminLayout({ profile, logout }) {
   const [active, setActive] = useState("dashboard");
+  const tourKey = `m360_onboarded_${profile?.uid}`;
+  const [showTour, setShowTour] = useState(() => !localStorage.getItem(tourKey));
 
   const renderPage = () => {
     switch (active) {
@@ -176,6 +203,7 @@ function AdminLayout({ profile, logout }) {
       case "materials":     return <AdminMaterials />;
       case "homework":      return <AdminHomework />;
       case "tests":         return <AdminTests />;
+      case "batches":       return <AdminBatches />;
       case "payments":      return <AdminPaymentMethods entityType="coaching" />;
       default:              return <AdminDashboard setActive={setActive} />;
     }
@@ -184,7 +212,11 @@ function AdminLayout({ profile, logout }) {
   return (
     <>
       <Sidebar role="admin" active={active} setActive={setActive} profile={profile} onLogout={logout} />
-      <div className="main-content">{renderPage()}</div>
+      <div className="main-content">
+        <ErrorBoundary>
+          <Suspense fallback={<PageLoader />}>{renderPage()}</Suspense>
+        </ErrorBoundary>
+      </div>
       {profile?.whatsapp && (
         <a href={`https://wa.me/${profile.whatsapp}`} target="_blank" rel="noopener noreferrer" style={{
           position: "fixed", bottom: 24, right: 24, zIndex: 100,
@@ -194,6 +226,7 @@ function AdminLayout({ profile, logout }) {
           boxShadow: "0 4px 20px rgba(37,211,102,0.4)",
         }}>💬</a>
       )}
+      {showTour && <OnboardingTour role="admin" uid={profile?.uid} onDone={() => setShowTour(false)} />}
     </>
   );
 }
@@ -205,6 +238,8 @@ function StudentLayout({ profile, logout }) {
   const [activeCoachingId, setActiveCoachingId] = useState(
     profile?.coachingIds?.[0] || profile?.coachingId || null
   );
+  const tourKey = `m360_onboarded_${profile?.uid}`;
+  const [showTour, setShowTour] = useState(() => !localStorage.getItem(tourKey));
 
   // Re-load coachings whenever profile changes (e.g. after joining one)
   useEffect(() => {
@@ -239,7 +274,12 @@ function StudentLayout({ profile, logout }) {
   return (
     <>
       <Sidebar role="student" active={active} setActive={setActive} profile={profile} onLogout={logout} />
-      <div className="main-content">{renderPage()}</div>
+      <div className="main-content">
+        <ErrorBoundary>
+          <Suspense fallback={<PageLoader />}>{renderPage()}</Suspense>
+        </ErrorBoundary>
+      </div>
+      {showTour && <OnboardingTour role="student" uid={profile?.uid} onDone={() => setShowTour(false)} />}
     </>
   );
 }
@@ -247,6 +287,8 @@ function StudentLayout({ profile, logout }) {
 // ── Tutor layout ───────────────────────────────────────────────
 function TutorLayout({ profile, logout }) {
   const [active, setActive] = useState("dashboard");
+  const tourKey = `m360_onboarded_${profile?.uid}`;
+  const [showTour, setShowTour] = useState(() => !localStorage.getItem(tourKey));
 
   const renderPage = () => {
     switch (active) {
@@ -260,7 +302,12 @@ function TutorLayout({ profile, logout }) {
   return (
     <>
       <Sidebar role="tutor" active={active} setActive={setActive} profile={profile} onLogout={logout} />
-      <div className="main-content">{renderPage()}</div>
+      <div className="main-content">
+        <ErrorBoundary>
+          <Suspense fallback={<PageLoader />}>{renderPage()}</Suspense>
+        </ErrorBoundary>
+      </div>
+      {showTour && <OnboardingTour role="tutor" uid={profile?.uid} onDone={() => setShowTour(false)} />}
     </>
   );
 }
@@ -272,7 +319,11 @@ function SuperAdminLayout({ profile, logout }) {
     <>
       <Sidebar role="superadmin" active={active} setActive={setActive} profile={profile} onLogout={logout} />
       <div className="main-content">
-        <SuperAdminDashboard active={active} />
+        <ErrorBoundary>
+          <Suspense fallback={<PageLoader />}>
+            <SuperAdminDashboard active={active} />
+          </Suspense>
+        </ErrorBoundary>
       </div>
     </>
   );

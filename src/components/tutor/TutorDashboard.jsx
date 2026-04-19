@@ -26,7 +26,7 @@ export default function TutorDashboard() {
   const [saving,  setSaving]            = useState(false);
   const [activeTab, setActiveTab]       = useState("profile");
   const [form, setForm] = useState({
-    name: "", bio: "", subject: "", city: "", state: "", yearsExp: "", phone: "", whatsapp: "", hourlyRate: "",
+    name: "", bio: "", subject: "", teachesWhom: "", city: "", state: "", yearsExp: "", phone: "", whatsapp: "", hourlyRate: "",
   });
 
   const load = async () => {
@@ -40,15 +40,16 @@ export default function TutorDashboard() {
       if (tp) {
         setTutorProfile(tp);
         setForm({
-          name:       tp.name       || profile.name || "",
-          bio:        tp.bio        || "",
-          subject:    tp.subject    || "",
-          city:       tp.city       || "",
-          state:      tp.state      || "",
-          yearsExp:   tp.yearsExp   || "",
-          phone:      tp.phone      || profile.phone || "",
-          whatsapp:   tp.whatsapp   || "",
-          hourlyRate: tp.hourlyRate || "",
+          name:        tp.name        || profile.name || "",
+          bio:         tp.bio         || "",
+          subject:     tp.subject     || "",
+          teachesWhom: tp.teachesWhom || "",
+          city:        tp.city        || "",
+          state:       tp.state       || "",
+          yearsExp:    tp.yearsExp    || "",
+          phone:       tp.phone       || profile.phone || "",
+          whatsapp:    tp.whatsapp    || "",
+          hourlyRate:  tp.hourlyRate  || "",
         });
       } else {
         setForm(f => ({ ...f, name: profile.name || "" }));
@@ -68,18 +69,19 @@ export default function TutorDashboard() {
     setSaving(true);
     try {
       await upsertTutorProfile(profile.uid, {
-        name:       form.name.trim(),
-        bio:        form.bio.trim(),
-        subject:    form.subject.trim(),
-        city:       form.city.trim(),
-        state:      form.state.trim(),
-        yearsExp:   form.yearsExp ? Number(form.yearsExp) : 0,
-        phone:      form.phone.trim(),
-        whatsapp:   form.whatsapp.trim(),
-        hourlyRate: form.hourlyRate ? Number(form.hourlyRate) : 0,
-        isTutor:    true,
+        name:        form.name.trim(),
+        bio:         form.bio.trim(),
+        subject:     form.subject.trim(),
+        teachesWhom: form.teachesWhom.trim(),
+        city:        form.city.trim(),
+        state:       form.state.trim(),
+        yearsExp:    form.yearsExp ? Number(form.yearsExp) : 0,
+        phone:       form.phone.trim(),
+        whatsapp:    form.whatsapp.trim(),
+        hourlyRate:  form.hourlyRate ? Number(form.hourlyRate) : 0,
+        isTutor:     true,
       });
-      await updateUserProfile(profile.uid, { isTutor: true });
+      await updateUserProfile(profile.uid, { isTutor: true, teachesWhom: form.teachesWhom.trim() });
       toast.success("Tutor profile saved!");
       await load();
     } catch { toast.error("Failed to save."); }
@@ -186,6 +188,25 @@ export default function TutorDashboard() {
                   }}
                 >
                   + {s}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Teaches Whom</label>
+            <input value={form.teachesWhom} onChange={set("teachesWhom")} placeholder="e.g. Class 10, IIT-JEE aspirants, College Students" />
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
+              {["Class 9 & 10","Class 11 & 12","College Students","IIT-JEE","NEET","UPSC","Competitive Exams","Beginners"].map(chip => (
+                <button key={chip} type="button"
+                  className="btn btn-sm btn-secondary"
+                  style={{ fontSize: 11 }}
+                  onClick={() => {
+                    const parts = form.teachesWhom.split(",").map(x => x.trim()).filter(Boolean);
+                    if (!parts.includes(chip)) setForm(f => ({ ...f, teachesWhom: [...parts, chip].join(", ") }));
+                  }}
+                >
+                  + {chip}
                 </button>
               ))}
             </div>

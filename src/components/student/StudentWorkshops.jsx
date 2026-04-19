@@ -21,7 +21,7 @@ export default function StudentWorkshops({ activeCoachingId }) {
     if (enrolled.has(w.id)) { toast("Already registered!"); return; }
     if ((w.enrolled || 0) >= w.seats) { toast.error("Workshop is full."); return; }
     try {
-      await enrollInWorkshop(activeCoachingId, w.id, w.enrolled || 0);
+      await enrollInWorkshop(activeCoachingId, w.id);
       setEnrolled(s => new Set([...s, w.id]));
       setWorkshops(ws => ws.map(x => x.id === w.id ? { ...x, enrolled: (x.enrolled || 0) + 1 } : x));
       toast.success(`Registered for "${w.title}"!`);

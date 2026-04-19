@@ -13,6 +13,7 @@ import {
   updateUserProfile,
   createJoinRequest,
   searchCoachings,
+  invalidateCoachingsCache,
 } from "../../services/firestoreService";
 import { sendPasswordResetEmail } from "firebase/auth";
 import { auth } from "../../services/firebase";
@@ -73,6 +74,7 @@ function SocialProfileSetup({ firebaseUser, preSelectedCoaching, onComplete, onC
           whatsapp: form.phone, adminId: firebaseUser.uid,
         });
         await updateUserProfile(firebaseUser.uid, { coachingId });
+        invalidateCoachingsCache(); // new institute should appear in search immediately
         toast.success("Institute registered! Welcome.");
         onComplete();
       } else {
@@ -409,6 +411,14 @@ export default function AuthScreen({ initialTab = "login", initialRegRole = "stu
             adminId:  user.uid,
           });
           await updateUserProfile(user.uid, { coachingId });
+        } else if (role === "tutor") {
+          // Save initial subject + teachesWhom to user profile
+          if (form.subject || form.teachesWhom) {
+            await updateUserProfile(user.uid, {
+              subject:     form.subject.trim(),
+              teachesWhom: form.teachesWhom?.trim() || "",
+            });
+          }
         }
         await refreshProfile();
         toast.success(role === "admin" ? "Institute registered! Welcome." : "Account created! Set up your tutor profile.");
@@ -751,6 +761,35 @@ export default function AuthScreen({ initialTab = "login", initialRegRole = "stu
                       <div className="form-group">
                         <label className="form-label">City</label>
                         <input placeholder="Delhi" value={form.city} onChange={set("city")} />
+                      </div>
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Subjects You Teach</label>
+                      <input placeholder="e.g. Mathematics, Physics" value={form.subject} onChange={set("subject")} />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Teaches Whom (free-text)</label>
+                      <input
+                        placeholder="e.g. Class 10, IIT-JEE aspirants, College students"
+                        value={form.teachesWhom || ""}
+                        onChange={set("teachesWhom")}
+                      />
+                      {/* Quick-pick chips */}
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
+                        {["Class 9 & 10","Class 11 & 12","College Students","IIT-JEE","NEET","UPSC","Competitive Exams","Beginners"].map(chip => (
+                          <button
+                            key={chip}
+                            type="button"
+                            className="btn btn-sm btn-secondary"
+                            style={{ fontSize: 10, padding: "3px 10px" }}
+                            onClick={() => {
+                              const parts = (form.teachesWhom || "").split(",").map(x => x.trim()).filter(Boolean);
+                              if (!parts.includes(chip)) set("teachesWhom")({ target: { value: [...parts, chip].join(", ") } });
+                            }}
+                          >
+                            + {chip}
+                          </button>
+                        ))}
                       </div>
                     </div>
                     <button className="btn btn-primary btn-full" onClick={handleRegister} disabled={loading}>

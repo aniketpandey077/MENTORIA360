@@ -1,6 +1,9 @@
 // src/components/admin/AdminTests.jsx
 // ============================================================
-// Admin creates MCQ tests. Tracks who has attempted.
+// Admin creates tests with two question types:
+//   • MCQ  — 4 options, select correct answer
+//   • Theory — free-text question; admin sets a model answer;
+//              students write their own answer (manually graded)
 // ============================================================
 
 import React, { useEffect, useState } from "react";
@@ -10,7 +13,9 @@ import Modal from "../shared/Modal";
 import toast from "react-hot-toast";
 
 const SUBJECTS = ["Mathematics", "Physics", "Chemistry", "Biology", "English", "Computer Science", "General"];
-const emptyQ = () => ({ question: "", options: ["", "", "", ""], correct: 0 });
+
+const emptyMCQ    = () => ({ type: "mcq",    question: "", options: ["", "", "", ""], correct: 0 });
+const emptyTheory = () => ({ type: "theory", question: "", modelAnswer: "" });
 
 export default function AdminTests() {
   const { profile } = useAuth();
@@ -21,7 +26,7 @@ export default function AdminTests() {
   const [attempts, setAttempts] = useState([]);
   const [form,     setForm]     = useState({
     title: "", subject: "Mathematics", duration: 30, dueDate: "",
-    questions: [emptyQ()],
+    questions: [emptyMCQ()],
   });
 
   const load = async () => {
@@ -33,27 +38,38 @@ export default function AdminTests() {
 
   const setField = (key) => (e) => setForm(f => ({ ...f, [key]: e.target.value }));
 
-  const addQuestion = () => setForm(f => ({ ...f, questions: [...f.questions, emptyQ()] }));
-  const removeQ = (i) => setForm(f => ({ ...f, questions: f.questions.filter((_, idx) => idx !== i) }));
+  const addMCQ    = () => setForm(f => ({ ...f, questions: [...f.questions, emptyMCQ()] }));
+  const addTheory = () => setForm(f => ({ ...f, questions: [...f.questions, emptyTheory()] }));
+  const removeQ   = (i) => setForm(f => ({ ...f, questions: f.questions.filter((_, idx) => idx !== i) }));
+
   const setQ = (i, key, val) => setForm(f => ({
     ...f,
     questions: f.questions.map((q, idx) => idx === i ? { ...q, [key]: val } : q)
   }));
   const setOpt = (qi, oi, val) => setForm(f => ({
     ...f,
-    questions: f.questions.map((q, idx) => idx === qi ? { ...q, options: q.options.map((o, i) => i === oi ? val : o) } : q)
+    questions: f.questions.map((q, idx) =>
+      idx === qi ? { ...q, options: q.options.map((o, i) => i === oi ? val : o) } : q
+    )
   }));
 
   const handleCreate = async () => {
     if (!form.title.trim()) { toast.error("Test title required."); return; }
-    if (form.questions.some(q => !q.question.trim() || q.options.some(o => !o.trim()))) {
-      toast.error("Please fill all questions and options."); return;
+    for (const q of form.questions) {
+      if (!q.question.trim()) { toast.error("All question texts must be filled."); return; }
+      if (q.type === "mcq" && q.options.some(o => !o.trim())) {
+        toast.error("Fill all 4 options for each MCQ question."); return;
+      }
     }
     try {
-      await createTest(profile.coachingId, { ...form, duration: Number(form.duration), authorName: profile.name });
+      await createTest(profile.coachingId, {
+        ...form,
+        duration: Number(form.duration),
+        authorName: profile.name,
+      });
       toast.success("Test created!");
       setShowAdd(false);
-      setForm({ title: "", subject: "Mathematics", duration: 30, dueDate: "", questions: [emptyQ()] });
+      setForm({ title: "", subject: "Mathematics", duration: 30, dueDate: "", questions: [emptyMCQ()] });
       load();
     } catch { toast.error("Failed to create test."); }
   };
@@ -78,8 +94,8 @@ export default function AdminTests() {
   return (
     <div className="fade-in">
       <div className="page-header">
-        <h2>🧪 Tests & Quizzes</h2>
-        <p>Create MCQ tests and track student performance</p>
+        <h2>🧪 Tests &amp; Quizzes</h2>
+        <p>Create MCQ and Theory tests, track student performance</p>
       </div>
 
       <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 20 }}>
@@ -101,15 +117,27 @@ export default function AdminTests() {
       {tests.map(t => {
         const attemptCount = t.attemptCount || 0;
         const expired = t.dueDate && t.dueDate < new Date().toISOString().slice(0, 10);
+        const mcqCount    = t.questions?.filter(q => q.type !== "theory").length || t.questions?.length || 0;
+        const theoryCount = t.questions?.filter(q => q.type === "theory").length || 0;
 
         return (
           <div key={t.id} className="card" style={{ marginBottom: 12 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
               <div style={{ flex: 1 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
                   <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 20, fontWeight: 600, background: "var(--accent-bg)", color: "var(--accent)" }}>
                     {t.subject?.toUpperCase()}
                   </span>
+                  {mcqCount > 0 && (
+                    <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 20, background: "rgba(59,130,246,0.1)", color: "#60a5fa", fontWeight: 600 }}>
+                      {mcqCount} MCQ
+                    </span>
+                  )}
+                  {theoryCount > 0 && (
+                    <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 20, background: "rgba(168,85,247,0.1)", color: "#c084fc", fontWeight: 600 }}>
+                      {theoryCount} Theory
+                    </span>
+                  )}
                   {expired && <span style={{ fontSize: 10, color: "var(--red)", fontWeight: 600 }}>EXPIRED</span>}
                 </div>
                 <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 4 }}>{t.title}</div>
@@ -128,7 +156,7 @@ export default function AdminTests() {
         );
       })}
 
-      {/* View Results Modal */}
+      {/* ── View Results Modal ──────────────────────────── */}
       {viewTest && (
         <Modal isOpen={!!viewTest} onClose={() => setViewTest(null)} title={`Results: ${viewTest.title}`}>
           {attempts.length === 0 ? (
@@ -144,6 +172,11 @@ export default function AdminTests() {
                   <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
                     <span style={{ color: "var(--text3)", fontWeight: 600, minWidth: 20 }}>#{i + 1}</span>
                     <span style={{ fontWeight: 500 }}>{a.studentName}</span>
+                    {a.theoryAnswers && Object.keys(a.theoryAnswers).length > 0 && (
+                      <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: 10, background: "rgba(168,85,247,0.15)", color: "#c084fc" }}>
+                        has theory
+                      </span>
+                    )}
                   </div>
                   <span style={{
                     fontWeight: 700, fontSize: 14,
@@ -159,7 +192,7 @@ export default function AdminTests() {
         </Modal>
       )}
 
-      {/* Create Test Modal */}
+      {/* ── Create Test Modal ───────────────────────────── */}
       <Modal isOpen={showAdd} onClose={() => setShowAdd(false)} title="Create New Test">
         <div className="form-group">
           <label className="form-label">Test Title *</label>
@@ -182,43 +215,95 @@ export default function AdminTests() {
           </div>
         </div>
 
+        {/* Questions section */}
         <div style={{ borderTop: "1px solid var(--border)", paddingTop: 16, marginTop: 8 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-            <span style={{ fontSize: 13, fontWeight: 600 }}>Questions</span>
-            <button className="btn btn-secondary btn-sm" onClick={addQuestion}>+ Add Question</button>
+            <span style={{ fontSize: 13, fontWeight: 600 }}>
+              Questions ({form.questions.length})
+            </span>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button className="btn btn-secondary btn-sm" onClick={addMCQ} style={{ fontSize: 11 }}>+ MCQ</button>
+              <button className="btn btn-secondary btn-sm" onClick={addTheory} style={{ fontSize: 11, borderColor: "rgba(168,85,247,0.5)", color: "#c084fc" }}>+ Theory</button>
+            </div>
           </div>
-          <div style={{ maxHeight: 340, overflowY: "auto" }}>
+
+          <div style={{ maxHeight: 400, overflowY: "auto", paddingRight: 4 }}>
             {form.questions.map((q, qi) => (
-              <div key={qi} style={{ background: "var(--bg3)", borderRadius: 10, padding: 14, marginBottom: 12, border: "1px solid var(--border)" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-                  <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text3)" }}>Q{qi + 1}</span>
+              <div key={qi} style={{
+                background: "var(--bg3)", borderRadius: 10, padding: 14, marginBottom: 12,
+                border: `1px solid ${q.type === "theory" ? "rgba(168,85,247,0.3)" : "var(--border)"}`,
+              }}>
+                {/* Question header */}
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: "var(--text3)" }}>Q{qi + 1}</span>
+                    <span style={{
+                      fontSize: 10, padding: "2px 8px", borderRadius: 20, fontWeight: 600,
+                      background: q.type === "theory" ? "rgba(168,85,247,0.15)" : "rgba(59,130,246,0.1)",
+                      color: q.type === "theory" ? "#c084fc" : "#60a5fa",
+                    }}>
+                      {q.type === "theory" ? "📝 Theory" : "🔘 MCQ"}
+                    </span>
+                  </div>
                   {form.questions.length > 1 && (
                     <button onClick={() => removeQ(qi)} style={{ fontSize: 11, color: "var(--red)", background: "none", border: "none", cursor: "pointer" }}>✕ Remove</button>
                   )}
                 </div>
-                <input
+
+                {/* Question text */}
+                <textarea
                   placeholder="Question text..."
                   value={q.question}
                   onChange={e => setQ(qi, "question", e.target.value)}
-                  style={{ width: "100%", marginBottom: 8, fontSize: 13 }}
+                  style={{ width: "100%", marginBottom: 10, fontSize: 13, resize: "vertical", minHeight: 60, boxSizing: "border-box" }}
+                  rows={2}
                 />
-                {q.options.map((opt, oi) => (
-                  <div key={oi} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-                    <input
-                      type="radio" name={`q${qi}`}
-                      checked={q.correct === oi}
-                      onChange={() => setQ(qi, "correct", oi)}
-                      style={{ accentColor: "var(--green)" }}
-                    />
-                    <input
-                      placeholder={`Option ${oi + 1}`}
-                      value={opt}
-                      onChange={e => setOpt(qi, oi, e.target.value)}
-                      style={{ flex: 1, fontSize: 12 }}
-                    />
-                    {q.correct === oi && <span style={{ fontSize: 10, color: "var(--green)", fontWeight: 600 }}>✓ Correct</span>}
+
+                {/* MCQ options */}
+                {q.type === "mcq" && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {q.options.map((opt, oi) => (
+                      <div key={oi} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <input
+                          type="radio"
+                          name={`q${qi}_correct`}
+                          checked={q.correct === oi}
+                          onChange={() => setQ(qi, "correct", oi)}
+                          style={{ accentColor: "var(--green)", flexShrink: 0, width: 16, height: 16, cursor: "pointer" }}
+                          title="Mark as correct answer"
+                        />
+                        <input
+                          placeholder={`Option ${oi + 1}`}
+                          value={opt}
+                          onChange={e => setOpt(qi, oi, e.target.value)}
+                          style={{ flex: 1, fontSize: 12, boxSizing: "border-box" }}
+                        />
+                        {q.correct === oi && (
+                          <span style={{ fontSize: 10, color: "var(--green)", fontWeight: 700, whiteSpace: "nowrap" }}>✓ Correct</span>
+                        )}
+                      </div>
+                    ))}
+                    <p style={{ fontSize: 10, color: "var(--text3)", margin: "4px 0 0" }}>
+                      Click the radio button to mark the correct answer.
+                    </p>
                   </div>
-                ))}
+                )}
+
+                {/* Theory answer */}
+                {q.type === "theory" && (
+                  <div>
+                    <label style={{ fontSize: 11, color: "var(--text3)", display: "block", marginBottom: 4 }}>
+                      Model Answer (for your reference — shown after grading)
+                    </label>
+                    <textarea
+                      placeholder="Write expected answer or key points..."
+                      value={q.modelAnswer}
+                      onChange={e => setQ(qi, "modelAnswer", e.target.value)}
+                      style={{ width: "100%", fontSize: 12, resize: "vertical", minHeight: 70, boxSizing: "border-box", borderColor: "rgba(168,85,247,0.35)" }}
+                      rows={3}
+                    />
+                  </div>
+                )}
               </div>
             ))}
           </div>

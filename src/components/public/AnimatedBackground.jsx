@@ -144,9 +144,18 @@ export default function AnimatedBackground() {
 
     const onResize=()=>{setSize();populate();};
     const onMouse=(e)=>{mx=e.clientX;my=e.clientY;};
+    // Pause animation when tab is hidden — saves CPU and battery
+    const onVisibility=()=>{
+      if(document.hidden){
+        if(rafRef.current){cancelAnimationFrame(rafRef.current);rafRef.current=null;}
+      }else{
+        if(!rafRef.current&&alive){prevTs=0;rafRef.current=requestAnimationFrame(loop);}
+      }
+    };
     window.addEventListener("resize",onResize);
     window.addEventListener("mousemove",onMouse);
-    return()=>{alive=false;cancelAnimationFrame(rafRef.current);rafRef.current=null;window.removeEventListener("resize",onResize);window.removeEventListener("mousemove",onMouse);};
+    document.addEventListener("visibilitychange",onVisibility);
+    return()=>{alive=false;cancelAnimationFrame(rafRef.current);rafRef.current=null;window.removeEventListener("resize",onResize);window.removeEventListener("mousemove",onMouse);document.removeEventListener("visibilitychange",onVisibility);};
   },[]);
 
   const cvs={position:"fixed",inset:0,width:"100%",height:"100%",display:"block"};

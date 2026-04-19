@@ -1,6 +1,7 @@
 // src/components/admin/AdminFees.jsx
 // ============================================================
 // Add fee records, track payments, mark fees as paid.
+// Now supports multi-select students + "Select All" for batch fee creation.
 // ============================================================
 
 import React, { useEffect, useState } from "react";
@@ -24,9 +25,16 @@ export default function AdminFees() {
   const [students, setStudents] = useState([]);
   const [loading,  setLoading]  = useState(true);
   const [showAdd,  setShowAdd]  = useState(false);
+  const [adding,   setAdding]   = useState(false);
   const [receipt,  setReceipt]  = useState(null);
   const [coaching, setCoachingInfo] = useState(null);
-  const [form,     setForm]     = useState({ studentId: "", amount: "", month: "", year: String(new Date().getFullYear()) });
+
+  // Multi-select form state
+  const [selectedIds,    setSelectedIds]    = useState([]); // array of student IDs
+  const [baseAmount,     setBaseAmount]     = useState("");  // shared amount field
+  const [overrides,      setOverrides]      = useState({}); // { [studentId]: amount }
+  const [month,          setMonth]          = useState("");
+  const [year,           setYear]           = useState(String(new Date().getFullYear()));
 
   const load = async () => {
     const c  = await getCoaching(profile.coachingId);
@@ -39,30 +47,82 @@ export default function AdminFees() {
   };
   useEffect(() => { load(); }, []);
 
-  const set = (key) => (e) => setForm(f => ({ ...f, [key]: e.target.value }));
+  // ── Multi-select helpers ─────────────────────────────────
+  const allSelected = students.length > 0 && selectedIds.length === students.length;
+  const toggleAll = () => {
+    if (allSelected) {
+      setSelectedIds([]);
+      setOverrides({});
+    } else {
+      setSelectedIds(students.map(s => s.id));
+    }
+  };
+  const toggleStudent = (id) => {
+    setSelectedIds(prev =>
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    );
+    // Clear any override when deselecting
+    if (selectedIds.includes(id)) {
+      setOverrides(prev => { const n = { ...prev }; delete n[id]; return n; });
+    }
+  };
+
+  // When base amount changes, clear all per-student overrides
+  const handleBaseAmountChange = (val) => {
+    setBaseAmount(val);
+    setOverrides({});
+  };
+
+  const handleOverride = (id, val) => {
+    setOverrides(prev => ({ ...prev, [id]: val }));
+  };
+
+  const getStudentAmount = (id) => {
+    return overrides[id] !== undefined ? overrides[id] : baseAmount;
+  };
+
+  const resetAddForm = () => {
+    setSelectedIds([]);
+    setBaseAmount("");
+    setOverrides({});
+    setMonth("");
+    setYear(String(new Date().getFullYear()));
+  };
 
   const handleAdd = async () => {
-    if (!form.studentId || !form.amount || !form.month) {
-      toast.error("Please fill all fields."); return;
+    if (selectedIds.length === 0) { toast.error("Select at least one student."); return; }
+    if (!baseAmount && selectedIds.some(id => !overrides[id])) { toast.error("Enter fee amount."); return; }
+    if (!month) { toast.error("Select a month."); return; }
+
+    // Validate all amounts are positive numbers
+    for (const id of selectedIds) {
+      const amt = Number(getStudentAmount(id));
+      if (!amt || amt <= 0) { toast.error(`Set a valid amount for ${students.find(s=>s.id===id)?.name}`); return; }
     }
-    const student = students.find(s => s.id === form.studentId);
-    const amount  = Number(form.amount);
+
+    setAdding(true);
     try {
-      await addFeeRecord(profile.coachingId, {
-        studentId:   form.studentId,
-        studentName: student?.name || "",
-        amount,
-        paid:   0,
-        due:    amount,
-        month:  `${form.month} ${form.year}`,
-        status: "unpaid",
-        date:   new Date().toISOString().slice(0, 10),
+      const promises = selectedIds.map(id => {
+        const student = students.find(s => s.id === id);
+        const amount  = Number(getStudentAmount(id));
+        return addFeeRecord(profile.coachingId, {
+          studentId:   id,
+          studentName: student?.name || "",
+          amount,
+          paid:   0,
+          due:    amount,
+          month:  `${month} ${year}`,
+          status: "unpaid",
+          date:   new Date().toISOString().slice(0, 10),
+        });
       });
-      toast.success("Fee record added!");
+      await Promise.all(promises);
+      toast.success(`Fee added for ${selectedIds.length} student${selectedIds.length > 1 ? "s" : ""}!`);
       setShowAdd(false);
-      setForm({ studentId: "", amount: "", month: "", year: String(new Date().getFullYear()) });
+      resetAddForm();
       load();
-    } catch { toast.error("Failed to add fee record."); }
+    } catch { toast.error("Failed to add fee records."); }
+    finally { setAdding(false); }
   };
 
   const handleMarkPaid = async (fee) => {
@@ -110,7 +170,7 @@ export default function AdminFees() {
               onClick={() => exportToCSV(fees.map(f => ({ Student: f.studentName, Month: f.month, Amount: f.amount, Paid: f.paid, Due: f.due, Status: f.status })), "fees")}>
               <Icon name="download" size={12} /> Export
             </button>
-            <button className="btn btn-primary btn-sm" onClick={() => setShowAdd(true)}>
+            <button className="btn btn-primary btn-sm" onClick={() => { resetAddForm(); setShowAdd(true); }}>
               <Icon name="plus" size={12} /> Add Fee
             </button>
           </div>
@@ -167,37 +227,156 @@ export default function AdminFees() {
         )}
       </div>
 
-      {/* Add Fee Modal */}
-      <Modal isOpen={showAdd} onClose={() => setShowAdd(false)} title="Add Fee Record">
-        <div className="form-group">
-          <label className="form-label">Student</label>
-          <select value={form.studentId} onChange={set("studentId")}>
-            <option value="">Select student</option>
-            {students.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-          </select>
-        </div>
-        <div className="form-group">
-          <label className="form-label">Amount (₹)</label>
-          <input type="number" placeholder="5000" value={form.amount} onChange={set("amount")} />
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-          <div className="form-group">
-            <label className="form-label">Month</label>
-            <select value={form.month} onChange={set("month")}>
+      {/* ── Add Fee Modal ──────────────────────────────────────── */}
+      <Modal isOpen={showAdd} onClose={() => { setShowAdd(false); resetAddForm(); }} title="Add Fee Record">
+
+        {/* Month + Year */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
+          <div className="form-group" style={{ margin: 0 }}>
+            <label className="form-label">Month *</label>
+            <select value={month} onChange={e => setMonth(e.target.value)}>
               <option value="">Select month</option>
               {MONTHS.map(m => <option key={m} value={m}>{m}</option>)}
             </select>
           </div>
-          <div className="form-group">
+          <div className="form-group" style={{ margin: 0 }}>
             <label className="form-label">Year</label>
-            <select value={form.year} onChange={set("year")}>
+            <select value={year} onChange={e => setYear(e.target.value)}>
               {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
             </select>
           </div>
         </div>
+
+        {/* Base Amount */}
+        <div className="form-group">
+          <label className="form-label">Fee Amount (₹) — applied to all selected</label>
+          <input
+            type="number"
+            placeholder="e.g. 5000"
+            value={baseAmount}
+            onChange={e => handleBaseAmountChange(e.target.value)}
+          />
+        </div>
+
+        {/* Student multi-select */}
+        <div className="form-group">
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+            <label className="form-label" style={{ marginBottom: 0 }}>
+              Select Students
+              {selectedIds.length > 0 && (
+                <span style={{ marginLeft: 8, fontSize: 11, color: "var(--accent)", fontWeight: 600 }}>
+                  {selectedIds.length} selected
+                </span>
+              )}
+            </label>
+            <button
+              className={`btn btn-sm ${allSelected ? "btn-danger" : "btn-secondary"}`}
+              style={{ fontSize: 11, padding: "4px 10px" }}
+              onClick={toggleAll}
+              type="button"
+            >
+              {allSelected ? "✕ Clear All" : "✓ Select All"}
+            </button>
+          </div>
+
+          {students.length === 0 ? (
+            <div style={{ textAlign: "center", padding: 20, color: "var(--text3)", fontSize: 13 }}>
+              No students enrolled yet
+            </div>
+          ) : (
+            <div style={{
+              maxHeight: 260,
+              overflowY: "auto",
+              border: "1px solid var(--border)",
+              borderRadius: 8,
+              background: "var(--bg3)",
+            }}>
+              {students.map((s, i) => {
+                const isSelected = selectedIds.includes(s.id);
+                const hasOverride = overrides[s.id] !== undefined;
+                return (
+                  <div
+                    key={s.id}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 10,
+                      padding: "9px 12px",
+                      borderBottom: i < students.length - 1 ? "1px solid var(--border)" : "none",
+                      background: isSelected ? "rgba(108,99,255,0.08)" : "transparent",
+                      transition: "background 0.15s",
+                      cursor: "pointer",
+                    }}
+                    onClick={() => toggleStudent(s.id)}
+                  >
+                    {/* Checkbox */}
+                    <div style={{
+                      width: 18, height: 18, borderRadius: 4, flexShrink: 0,
+                      border: `2px solid ${isSelected ? "var(--accent)" : "var(--border2)"}`,
+                      background: isSelected ? "var(--accent)" : "transparent",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      transition: "all 0.15s",
+                    }}>
+                      {isSelected && <span style={{ color: "#fff", fontSize: 10, fontWeight: 700 }}>✓</span>}
+                    </div>
+
+                    <span style={{ flex: 1, fontSize: 13, fontWeight: 500 }}>{s.name}</span>
+
+                    {/* Per-student amount override */}
+                    {isSelected && baseAmount && (
+                      <div
+                        onClick={e => e.stopPropagation()}
+                        style={{ display: "flex", alignItems: "center", gap: 6 }}
+                      >
+                        <span style={{ fontSize: 11, color: "var(--text3)" }}>₹</span>
+                        <input
+                          type="number"
+                          value={hasOverride ? overrides[s.id] : baseAmount}
+                          onChange={e => handleOverride(s.id, e.target.value)}
+                          style={{
+                            width: 80, fontSize: 12, padding: "3px 8px",
+                            border: `1px solid ${hasOverride ? "var(--amber)" : "var(--border)"}`,
+                            borderRadius: 6,
+                          }}
+                          title="Override amount for this student"
+                        />
+                        {hasOverride && (
+                          <button
+                            type="button"
+                            onClick={() => { const n={...overrides}; delete n[s.id]; setOverrides(n); }}
+                            style={{ background:"none", border:"none", color:"var(--text3)", cursor:"pointer", fontSize:11, padding:"0 2px" }}
+                            title="Reset to base amount"
+                          >↺</button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {selectedIds.length > 0 && baseAmount && (
+          <div style={{
+            padding: "10px 14px", borderRadius: 8,
+            background: "var(--accent-bg)", border: "1px solid var(--accent)",
+            fontSize: 13, color: "var(--text)", marginBottom: 8,
+          }}>
+            💡 Adding fee of <strong>₹{baseAmount}</strong> for <strong>{selectedIds.length}</strong> student{selectedIds.length > 1 ? "s" : ""} for <strong>{month || "–"} {year}</strong>
+            {Object.keys(overrides).length > 0 && (
+              <span style={{ marginLeft: 6, color: "var(--amber)", fontSize: 11 }}>
+                ({Object.keys(overrides).length} with custom amount)
+              </span>
+            )}
+          </div>
+        )}
+
         <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-          <button className="btn btn-primary" style={{ flex: 1 }} onClick={handleAdd}>Add Record</button>
-          <button className="btn btn-secondary" onClick={() => setShowAdd(false)}>Cancel</button>
+          <button className="btn btn-primary" style={{ flex: 1 }} onClick={handleAdd} disabled={adding}>
+            {adding ? <span className="spinner" /> : `Add${selectedIds.length > 1 ? ` (${selectedIds.length})` : ""} Record${selectedIds.length > 1 ? "s" : ""}`}
+          </button>
+          <button className="btn btn-secondary" onClick={() => { setShowAdd(false); resetAddForm(); }}>Cancel</button>
         </div>
       </Modal>
 

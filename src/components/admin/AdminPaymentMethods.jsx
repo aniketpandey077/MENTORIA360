@@ -28,6 +28,7 @@ export default function AdminPaymentMethods({ entityType = "coaching" }) {
   const [loading, setLoading]   = useState(true);
   const [showAdd, setShowAdd]   = useState(false);
   const [saving,  setSaving]    = useState(false);
+  const [saved,   setSaved]     = useState(false);
   const [form, setForm] = useState({
     type: "upi", label: "", upiId: "", bankName: "", accountNo: "", ifsc: "", accountHolder: "", note: "",
   });
@@ -38,11 +39,12 @@ export default function AdminPaymentMethods({ entityType = "coaching" }) {
   // entityId = coachingId for admin, uid for tutor
   const entityId = entityType === "tutor" ? profile?.uid : profile?.coachingId;
 
-  const load = async () => {
-    if (!entityId) return;
+  const load = async (eid) => {
+    const id = eid || entityId;
+    if (!id) return;
     setLoading(true);
     try {
-      setMethods(await getPaymentMethods(entityType, entityId));
+      setMethods(await getPaymentMethods(entityType, id));
     } catch {
       toast.error("Failed to load payment methods.");
     } finally {
@@ -50,9 +52,16 @@ export default function AdminPaymentMethods({ entityType = "coaching" }) {
     }
   };
 
-  useEffect(() => { load(); }, [entityId]);
+  useEffect(() => { if (entityId) load(entityId); }, [entityId]);
 
   const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }));
+
+  const resetForm = () => {
+    setForm({ type: "upi", label: "", upiId: "", bankName: "", accountNo: "", ifsc: "", accountHolder: "", note: "" });
+    setQrFile(null);
+    setQrPreview(null);
+    if (fileRef.current) fileRef.current.value = "";
+  };
 
   const handleQrFile = (e) => {
     const file = e.target.files[0];
@@ -64,6 +73,7 @@ export default function AdminPaymentMethods({ entityType = "coaching" }) {
   };
 
   const handleAdd = async () => {
+    if (!entityId) { toast.error("Profile not ready. Please wait a moment."); return; }
     if (!form.label.trim()) { toast.error("Please enter a label."); return; }
     setSaving(true);
     try {
@@ -83,17 +93,22 @@ export default function AdminPaymentMethods({ entityType = "coaching" }) {
         data.accountHolder  = form.accountHolder.trim();
       } else if (form.type === "qr") {
         if (!qrPreview) { toast.error("Upload a QR code image."); setSaving(false); return; }
-        data.qrBase64 = qrPreview; // store as base64 (small images only)
+        data.qrBase64 = qrPreview;
       }
 
       await addPaymentMethod(entityType, entityId, data);
-      toast.success("Payment method added!");
-      setShowAdd(false);
-      setForm({ type: "upi", label: "", upiId: "", bankName: "", accountNo: "", ifsc: "", accountHolder: "", note: "" });
-      setQrFile(null); setQrPreview(null);
-      await load();
-    } catch {
-      toast.error("Failed to save.");
+      // ✅ Reload list FIRST before closing modal
+      await load(entityId);
+      setSaved(true);
+      toast.success("Payment method saved!");
+      setTimeout(() => {
+        setSaved(false);
+        setShowAdd(false);
+        resetForm();
+      }, 700);
+    } catch (err) {
+      console.error("Payment save error:", err);
+      toast.error("Failed to save. Please try again.");
     } finally { setSaving(false); }
   };
 
@@ -212,10 +227,10 @@ export default function AdminPaymentMethods({ entityType = "coaching" }) {
             </div>
 
             <div style={{ display: "flex", gap: 10 }}>
-              <button className="btn btn-primary" style={{ flex: 1 }} onClick={handleAdd} disabled={saving}>
-                {saving ? <span className="spinner" /> : "Save Method →"}
+              <button className="btn btn-primary" style={{ flex: 1, background: saved ? "var(--green)" : undefined }} onClick={handleAdd} disabled={saving || saved}>
+                {saving ? <span className="spinner" /> : saved ? "✓ Saved!" : "Save Method →"}
               </button>
-              <button className="btn btn-secondary" onClick={() => setShowAdd(false)}>Cancel</button>
+              <button className="btn btn-secondary" onClick={() => { setShowAdd(false); resetForm(); }} disabled={saving}>Cancel</button>
             </div>
           </div>
         </div>

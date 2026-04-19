@@ -25,6 +25,7 @@ const NAV = {
     { key: "classes",        icon: "class",       label: "Classes" },
     { key: "homework",       icon: "homework",    label: "Homework" },
     { key: "tests",          icon: "test",        label: "Tests" },
+    { key: "batches",        icon: "batch",       label: "Batches" },
     { key: "workshops",      icon: "workshop",    label: "Workshops" },
     { key: "materials",      icon: "material",    label: "Materials" },
     { key: "announcements",  icon: "announce",    label: "Announce" },
@@ -244,6 +245,7 @@ function NavIcon({ name, size = 16 }) {
     profile:   "M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z",
     tutor:     "M20 17c0 1.1-.9 2-2 2H4l-4 4V5c0-1.1.9-2 2-2h16c1.1 0 2 .9 2 2v12zM6 9v2h12V9H6zm0 4v2h8v-2H6z",
     star:      "M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z",
+    batch:     "M17 12h-5v5h5v-5zM16 1v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2h-1V1h-2zm3 18H5V8h14v11z",
     close:     "M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z",
   };
 

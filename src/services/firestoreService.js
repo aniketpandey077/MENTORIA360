@@ -7,7 +7,7 @@
 import {
   doc, getDoc, setDoc, updateDoc, deleteDoc,
   collection, query, where, getDocs, addDoc,
-  serverTimestamp, orderBy, limit, writeBatch,
+  serverTimestamp, orderBy, limit, writeBatch, increment,
 } from "firebase/firestore";
 import {
   ref, uploadBytesResumable, getDownloadURL, deleteObject,
@@ -74,10 +74,26 @@ export async function updateCoaching(coachingId, data) {
 
 /**
  * Get all coaching institutes (for student search / super admin).
+ * Cached in-memory for 2 minutes to avoid repeated full-collection reads.
  */
+let _coachingsCache = null;
+let _coachingsCacheAt = 0;
+const CACHE_TTL_MS = 2 * 60 * 1000; // 2 minutes
+
 export async function getAllCoachings() {
+  const now = Date.now();
+  if (_coachingsCache && (now - _coachingsCacheAt) < CACHE_TTL_MS) {
+    return _coachingsCache;
+  }
   const snap = await getDocs(collection(db, "coachings"));
-  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  _coachingsCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  _coachingsCacheAt = now;
+  return _coachingsCache;
+}
+
+/** Invalidate cache — call after creating/updating a coaching. */
+export function invalidateCoachingsCache() {
+  _coachingsCache = null;
 }
 
 /**
@@ -359,9 +375,10 @@ export async function getWorkshops(coachingId) {
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 
-export async function enrollInWorkshop(coachingId, workshopId, currentEnrolled) {
+export async function enrollInWorkshop(coachingId, workshopId) {
+  // Use atomic increment() to prevent race condition when multiple students enroll simultaneously
   await updateDoc(doc(db, "coachings", coachingId, "workshops", workshopId), {
-    enrolled: currentEnrolled + 1,
+    enrolled: increment(1),
   });
 }
 
@@ -711,3 +728,39 @@ export async function getAllUsers() {
     return [];
   }
 }
+
+/* -- BATCHES ------------------------------------------------ */
+
+/**
+ * Create a new batch for a coaching.
+ * data: { name, subject, schedule, description, studentIds[] }
+ */
+export async function createBatch(coachingId, data) {
+  const ref = await addDoc(collection(db, "coachings", coachingId, "batches"), {
+    ...data,
+    studentIds: data.studentIds || [],
+    createdAt: serverTimestamp(),
+  });
+  return ref.id;
+}
+
+export async function getBatches(coachingId) {
+  const q = query(
+    collection(db, "coachings", coachingId, "batches"),
+    orderBy("createdAt", "desc")
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+export async function updateBatch(coachingId, batchId, data) {
+  await updateDoc(doc(db, "coachings", coachingId, "batches", batchId), {
+    ...data,
+    updatedAt: serverTimestamp(),
+  });
+}
+
+export async function deleteBatch(coachingId, batchId) {
+  await deleteDoc(doc(db, "coachings", coachingId, "batches", batchId));
+}
+

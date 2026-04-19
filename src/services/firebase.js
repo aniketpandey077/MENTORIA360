@@ -1,22 +1,21 @@
 // src/services/firebase.js
 // ============================================================
-// Firebase Configuration
-// Replace the firebaseConfig object with YOUR project's config
-// from Firebase Console → Project Settings → Your apps → Web app
+// Firebase Configuration — credentials loaded from .env
+// Never hardcode keys here. Add .env to .gitignore always.
 // ============================================================
 
 import { initializeApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
-import { getStorage } from "firebase/storage";
+import { getAuth }       from "firebase/auth";
+import { getFirestore }  from "firebase/firestore";
+import { getStorage }    from "firebase/storage";
 
 const firebaseConfig = {
-  apiKey:            "AIzaSyBtyr2p40s7OE5gzQf0kl98bP81tdOBmnE",
-  authDomain:        "project-main-cms.firebaseapp.com",
-  projectId:         "project-main-cms",
-  storageBucket:     "project-main-cms.firebasestorage.app",
-  messagingSenderId: "784301098734",
-  appId:             "1:784301098734:web:87634a6c32ceda4ae055ff",
+  apiKey:            process.env.REACT_APP_FIREBASE_API_KEY,
+  authDomain:        process.env.REACT_APP_FIREBASE_AUTH_DOMAIN,
+  projectId:         process.env.REACT_APP_FIREBASE_PROJECT_ID,
+  storageBucket:     process.env.REACT_APP_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.REACT_APP_FIREBASE_MESSAGING_SENDER_ID,
+  appId:             process.env.REACT_APP_FIREBASE_APP_ID,
 };
 
 const app = initializeApp(firebaseConfig);
