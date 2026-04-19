@@ -467,7 +467,7 @@ export default function AuthScreen({ initialTab = "login", initialRegRole = "stu
       <div style={{
         minHeight: "100vh", display: "flex",
         alignItems: "center", justifyContent: "center",
-        background: "var(--bg)", padding: 20,
+        background: "transparent", padding: 20,
       }}>
         <div style={{ width: "100%", maxWidth: 500 }}>
 

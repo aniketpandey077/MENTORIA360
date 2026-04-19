@@ -1,0 +1,1036 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mentoria360 — Where Knowledge Begins</title>
+  <meta name="description" content="Mentoria360 is the premium coaching platform that connects students with elite educators. Sign in to begin your journey." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,300&family=Syne:wght@600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg:        #080810;
+      --accent:    #6c63ff;
+      --light:     #8b82ff;
+      --lightest:  #c4c0ff;
+      --text:      #e0e0ff;
+      --muted:     #5a5a90;
+      --surface:   #0f0a24;
+    }
+
+    html, body {
+      width: 100%; height: 100%;
+      overflow: hidden;
+      background: var(--bg);
+      font-family: 'DM Sans', sans-serif;
+      color: var(--text);
+      cursor: none;
+    }
+
+    /* ── Canvases ─────────────────────────────────── */
+    #bgCanvas, #conCanvas, #fxCanvas {
+      position: fixed;
+      inset: 0;
+      width: 100%; height: 100%;
+      display: block;
+    }
+    #bgCanvas  { z-index: 1; }
+    #conCanvas { z-index: 2; }
+    #fxCanvas  { z-index: 3; pointer-events: none; }
+
+    /* ── Portal overlay ───────────────────────────── */
+    #portalOverlay {
+      position: fixed; inset: 0; z-index: 10;
+      background: var(--bg);
+      pointer-events: none;
+    }
+    #portalCanvas {
+      position: absolute; inset: 0;
+      width: 100%; height: 100%;
+    }
+
+    /* ── Login Card ───────────────────────────────── */
+    #loginWrapper {
+      position: fixed; inset: 0; z-index: 20;
+      display: flex; align-items: center; justify-content: center;
+      opacity: 0;
+      transform: translateY(40px);
+      transition: opacity 0.9s ease, transform 0.9s ease;
+      pointer-events: none;
+    }
+    #loginWrapper.visible {
+      opacity: 1;
+      transform: translateY(0px);
+      pointer-events: all;
+    }
+
+    .card {
+      width: 380px;
+      background: rgba(8,8,16,0.85);
+      border: 1px solid rgba(108,99,255,0.3);
+      border-radius: 24px;
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      padding: 44px 40px;
+      box-shadow: 0 0 60px rgba(108,99,255,0.12), 0 0 120px rgba(59,130,246,0.06);
+      animation: floatCard 4s ease-in-out infinite;
+      position: relative;
+      overflow: hidden;
+    }
+    .card::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: 24px;
+      background: linear-gradient(135deg, rgba(108,99,255,0.05) 0%, transparent 60%);
+      pointer-events: none;
+    }
+
+    @keyframes floatCard {
+      0%, 100% { transform: translateY(0px); }
+      50%       { transform: translateY(-6px); }
+    }
+
+    /* Logo */
+    .logo-area {
+      text-align: center;
+      margin-bottom: 28px;
+    }
+    .logo-circle {
+      width: 52px; height: 52px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #6c63ff 0%, #3b82f6 100%);
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 14px;
+      font-family: 'Syne', sans-serif;
+      font-weight: 800;
+      font-size: 22px;
+      color: #fff;
+      box-shadow: 0 0 24px rgba(108,99,255,0.6), 0 0 48px rgba(108,99,255,0.2);
+      position: relative;
+    }
+    .logo-circle::after {
+      content: '';
+      position: absolute;
+      inset: -3px;
+      border-radius: 50%;
+      border: 1.5px solid rgba(139,130,255,0.5);
+      animation: spinRing 8s linear infinite;
+    }
+    @keyframes spinRing {
+      to { transform: rotate(360deg); }
+    }
+    .brand-name {
+      font-family: 'Syne', sans-serif;
+      font-weight: 800;
+      font-size: 30px;
+      background: linear-gradient(90deg, #8b82ff, #c4c0ff);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      line-height: 1;
+      margin-bottom: 8px;
+      letter-spacing: -0.5px;
+    }
+    .brand-tagline {
+      font-size: 10px;
+      color: var(--muted);
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      font-weight: 500;
+    }
+
+    /* Tabs */
+    .tabs {
+      display: flex;
+      background: rgba(255,255,255,0.04);
+      border-radius: 12px;
+      padding: 4px;
+      margin-bottom: 28px;
+      border: 1px solid rgba(108,99,255,0.12);
+    }
+    .tab-btn {
+      flex: 1;
+      padding: 9px 0;
+      border: none;
+      border-radius: 9px;
+      cursor: pointer;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 13px;
+      font-weight: 600;
+      transition: all 0.3s ease;
+      background: transparent;
+      color: var(--muted);
+      letter-spacing: 0.03em;
+    }
+    .tab-btn.active {
+      background: linear-gradient(135deg, #6c63ff, #8b82ff);
+      color: #fff;
+      box-shadow: 0 4px 14px rgba(108,99,255,0.4);
+    }
+    .tab-btn:not(.active):hover {
+      color: var(--text);
+      background: rgba(108,99,255,0.08);
+    }
+
+    /* Form panels */
+    .form-panel { display: none; }
+    .form-panel.active { display: block; }
+
+    /* Inputs */
+    .field { margin-bottom: 18px; }
+    .field label {
+      display: block;
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--muted);
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+    .field input {
+      width: 100%;
+      padding: 12px 16px;
+      background: var(--surface);
+      border: 1px solid rgba(108,99,255,0.2);
+      border-radius: 12px;
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 14px;
+      outline: none;
+      transition: border-color 0.3s, box-shadow 0.3s;
+      caret-color: var(--light);
+    }
+    .field input::placeholder { color: rgba(90,90,144,0.6); }
+    .field input:focus {
+      border-color: rgba(139,130,255,0.7);
+      box-shadow: 0 0 0 3px rgba(108,99,255,0.15), 0 0 20px rgba(108,99,255,0.1);
+    }
+
+    /* Submit button */
+    .btn-primary {
+      width: 100%;
+      padding: 14px;
+      border: none;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #6c63ff 0%, #8b82ff 100%);
+      color: #fff;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      letter-spacing: 0.03em;
+      position: relative;
+      overflow: hidden;
+      transition: transform 0.2s ease, box-shadow 0.3s ease;
+      box-shadow: 0 6px 20px rgba(108,99,255,0.35);
+      margin-top: 8px;
+    }
+    .btn-primary:hover {
+      transform: scale(1.025);
+      box-shadow: 0 8px 30px rgba(108,99,255,0.55);
+    }
+    .btn-primary:active { transform: scale(0.98); }
+    .btn-primary .ripple {
+      position: absolute;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.3);
+      transform: scale(0);
+      animation: rippleAnim 0.6s linear;
+      pointer-events: none;
+    }
+    @keyframes rippleAnim {
+      to { transform: scale(4); opacity: 0; }
+    }
+
+    .forgot-link {
+      display: block;
+      text-align: center;
+      margin-top: 14px;
+      font-size: 12px;
+      color: var(--muted);
+      text-decoration: none;
+      transition: color 0.2s;
+      cursor: pointer;
+    }
+    .forgot-link:hover { color: var(--light); }
+
+    .divider {
+      display: flex; align-items: center;
+      gap: 12px; margin: 20px 0;
+    }
+    .divider::before, .divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: rgba(108,99,255,0.18);
+    }
+    .divider span { font-size: 11px; color: var(--muted); }
+
+    /* ── Custom Cursor ────────────────────────────── */
+    #cursorDot, #cursorRing {
+      position: fixed;
+      border-radius: 50%;
+      pointer-events: none;
+      z-index: 9999;
+      transform: translate(-50%, -50%);
+      will-change: left, top;
+    }
+    #cursorDot {
+      width: 8px; height: 8px;
+      background: #8b82ff;
+      box-shadow: 0 0 10px #8b82ff, 0 0 20px rgba(139,130,255,0.4);
+      transition: none;
+    }
+    #cursorRing {
+      width: 28px; height: 28px;
+      border: 1.5px solid rgba(139,130,255,0.6);
+      box-shadow: 0 0 8px rgba(139,130,255,0.2);
+      transition: left 0.12s ease, top 0.12s ease;
+    }
+
+    @media (pointer: coarse) {
+      #cursorDot, #cursorRing { display: none; }
+      html, body { cursor: auto; }
+    }
+
+    /* ── Scrollbar ────────────────────────────────── */
+    ::-webkit-scrollbar { width: 0; }
+  </style>
+</head>
+<body>
+
+<!-- Background: floating 3D objects -->
+<canvas id="bgCanvas"></canvas>
+<!-- Constellation network -->
+<canvas id="conCanvas"></canvas>
+<!-- Gravity particles / FX (cursor) -->
+<canvas id="fxCanvas"></canvas>
+
+<!-- Portal opening overlay -->
+<div id="portalOverlay">
+  <canvas id="portalCanvas"></canvas>
+</div>
+
+<!-- Custom cursor -->
+<div id="cursorDot"></div>
+<div id="cursorRing"></div>
+
+<!-- Login Card -->
+<div id="loginWrapper">
+  <div class="card" id="loginCard">
+    <div class="logo-area">
+      <div class="logo-circle">M</div>
+      <div class="brand-name">Mentoria360</div>
+      <div class="brand-tagline">Where Knowledge Begins</div>
+    </div>
+
+    <div class="tabs">
+      <button class="tab-btn active" id="tabSignIn" onclick="switchTab('signin')">Sign In</button>
+      <button class="tab-btn" id="tabRegister" onclick="switchTab('register')">Register</button>
+    </div>
+
+    <!-- Sign In Panel -->
+    <div class="form-panel active" id="panelSignin">
+      <div class="field">
+        <label>Email</label>
+        <input type="email" id="siEmail" placeholder="your@email.com" autocomplete="email" />
+      </div>
+      <div class="field">
+        <label>Password</label>
+        <input type="password" id="siPassword" placeholder="••••••••" autocomplete="current-password" />
+      </div>
+      <button class="btn-primary" id="btnSignIn" onclick="handleRipple(event, this)">Sign In</button>
+      <a class="forgot-link" tabindex="0">Forgot password?</a>
+    </div>
+
+    <!-- Register Panel -->
+    <div class="form-panel" id="panelRegister">
+      <div class="field">
+        <label>Full Name</label>
+        <input type="text" id="regName" placeholder="Your full name" autocomplete="name" />
+      </div>
+      <div class="field">
+        <label>Email</label>
+        <input type="email" id="regEmail" placeholder="your@email.com" autocomplete="email" />
+      </div>
+      <div class="field">
+        <label>Password</label>
+        <input type="password" id="regPassword" placeholder="Choose a strong password" autocomplete="new-password" />
+      </div>
+      <button class="btn-primary" id="btnRegister" onclick="handleRipple(event, this)">Create Account</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─────────────────────────────────────────────
+// UTILITY
+// ─────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+const rand  = (a, b) => a + Math.random() * (b - a);
+const randI = (a, b) => Math.floor(rand(a, b));
+const PI2   = Math.PI * 2;
+
+let W = window.innerWidth, H = window.innerHeight;
+let mx = W/2, my = H/2; // mouse position (global)
+
+// ─────────────────────────────────────────────
+// CANVAS SETUP
+// ─────────────────────────────────────────────
+function setupCanvas(canvas) {
+  canvas.width  = W;
+  canvas.height = H;
+  return canvas.getContext('2d');
+}
+
+const bgCanvas  = $('bgCanvas');  const bgCtx  = setupCanvas(bgCanvas);
+const conCanvas = $('conCanvas'); const conCtx = setupCanvas(conCanvas);
+const fxCanvas  = $('fxCanvas');  const fxCtx  = setupCanvas(fxCanvas);
+const portalCanvas = $('portalCanvas'); const pCtx  = setupCanvas(portalCanvas);
+
+window.addEventListener('resize', () => {
+  W = window.innerWidth; H = window.innerHeight;
+  [bgCanvas, conCanvas, fxCanvas, portalCanvas].forEach(c => {
+    c.width = W; c.height = H;
+  });
+  initBg(); initConstellation();
+});
+
+// ─────────────────────────────────────────────
+// MOUSE / CURSOR
+// ─────────────────────────────────────────────
+const dot  = $('cursorDot');
+const ring = $('cursorRing');
+let rx = W/2, ry = H/2;
+
+window.addEventListener('mousemove', e => {
+  mx = e.clientX; my = e.clientY;
+  dot.style.left  = mx + 'px';
+  dot.style.top   = my + 'px';
+  ring.style.left = mx + 'px';
+  ring.style.top  = my + 'px';
+});
+
+// ─────────────────────────────────────────────
+// BACKGROUND LAYER 1 — Floating 3D Objects
+// ─────────────────────────────────────────────
+const OBJ_TYPES = ['book', 'cap', 'pencil', 'atom', 'bulb'];
+let bgObjects = [];
+
+function makeBgObj() {
+  const depth = rand(0.3, 1.0);          // 1 = closest
+  const spd   = depth * 0.22;
+  const size  = 20 + depth * 48;
+  return {
+    x:    rand(0, W), y: rand(0, H),
+    vx:   (Math.random() - 0.5) * spd,
+    vy:   (Math.random() - 0.5) * spd,
+    rot:  rand(0, PI2),
+    rotV: (Math.random() - 0.5) * 0.004,
+    size, depth,
+    type: OBJ_TYPES[randI(0, OBJ_TYPES.length)],
+    hue:  Math.random() < 0.5 ? '#6c63ff' : '#3b82f6',
+    alpha: 0.35 + depth * 0.3,
+  };
+}
+
+function initBg() {
+  bgObjects = Array.from({length: 18}, makeBgObj);
+}
+initBg();
+
+// ── Drawing primitives ─────────────────────
+function drawBook(ctx, sz) {
+  const w = sz * 0.85, h = sz * 1.05, sp = sz * 0.08;
+  ctx.fillStyle   = 'rgba(108,99,255,0.18)';
+  ctx.strokeStyle = 'rgba(139,130,255,0.75)';
+  ctx.lineWidth   = 1.2;
+  // cover
+  ctx.beginPath();
+  ctx.rect(-w/2 - sp/2, -h/2, w/2, h);
+  ctx.fill(); ctx.stroke();
+  ctx.beginPath();
+  ctx.rect(sp/2, -h/2, w/2, h);
+  ctx.fill(); ctx.stroke();
+  // spine
+  ctx.beginPath();
+  ctx.rect(-sp/2, -h/2, sp, h);
+  ctx.fillStyle = 'rgba(139,130,255,0.3)';
+  ctx.fill(); ctx.stroke();
+  // pages (lines)
+  ctx.strokeStyle = 'rgba(196,192,255,0.4)';
+  ctx.lineWidth = 0.7;
+  for (let i=-3; i<=3; i++) {
+    const y = i * (h/9);
+    ctx.beginPath();
+    ctx.moveTo(-w/2-sp/2+4, y); ctx.lineTo(-sp/2-2, y);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(sp/2+2, y); ctx.lineTo(w/2+sp/2-4, y);
+    ctx.stroke();
+  }
+}
+
+function drawCap(ctx, sz) {
+  const r = sz * 0.42, bw = sz * 0.7, bh = sz * 0.14;
+  ctx.strokeStyle = 'rgba(139,130,255,0.75)';
+  ctx.fillStyle   = 'rgba(108,99,255,0.22)';
+  ctx.lineWidth   = 1.2;
+  // brim
+  ctx.beginPath();
+  ctx.ellipse(0, r*0.45, bw/2+4, bh/2, 0, 0, PI2);
+  ctx.fill(); ctx.stroke();
+  // top flat board
+  ctx.beginPath();
+  ctx.ellipse(0, -r*0.12, r, r*0.3, 0, 0, PI2);
+  ctx.fill(); ctx.stroke();
+  // side
+  ctx.beginPath();
+  ctx.moveTo(-r, -r*0.12);
+  ctx.quadraticCurveTo(-r*0.8, r*0.7, -bw/2-4, r*0.45);
+  ctx.moveTo(r, -r*0.12);
+  ctx.quadraticCurveTo(r*0.8, r*0.7, bw/2+4, r*0.45);
+  ctx.strokeStyle = 'rgba(139,130,255,0.5)';
+  ctx.stroke();
+  // tassel
+  ctx.beginPath();
+  ctx.moveTo(r*0.5, -r*0.12);
+  ctx.lineTo(r*0.5, r*0.55);
+  ctx.strokeStyle = 'rgba(196,192,255,0.7)';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(r*0.5, r*0.58, 4, 0, PI2);
+  ctx.fillStyle = 'rgba(196,192,255,0.5)';
+  ctx.fill();
+}
+
+function drawPencil(ctx, sz) {
+  const len = sz * 1.3, w = sz * 0.2;
+  ctx.fillStyle   = 'rgba(108,99,255,0.2)';
+  ctx.strokeStyle = 'rgba(139,130,255,0.75)';
+  ctx.lineWidth   = 1.2;
+  // body
+  ctx.beginPath();
+  ctx.rect(-w/2, -len/2 + len*0.15, w, len*0.7);
+  ctx.fill(); ctx.stroke();
+  // tip
+  ctx.beginPath();
+  ctx.moveTo(-w/2, len/2 - len*0.15);
+  ctx.lineTo(0,    len/2);
+  ctx.lineTo(w/2,  len/2 - len*0.15);
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(196,192,255,0.5)';
+  ctx.fill(); ctx.stroke();
+  // eraser
+  ctx.beginPath();
+  ctx.rect(-w/2, -len/2, w, len*0.14);
+  ctx.fillStyle = 'rgba(59,130,246,0.4)';
+  ctx.fill(); ctx.stroke();
+  // line along body
+  ctx.beginPath();
+  ctx.moveTo(0, -len/2 + len*0.15);
+  ctx.lineTo(0, len/2 - len*0.15);
+  ctx.strokeStyle = 'rgba(196,192,255,0.3)';
+  ctx.lineWidth = 0.6;
+  ctx.stroke();
+}
+
+function drawAtom(ctx, sz, t) {
+  const r = sz * 0.38;
+  ctx.strokeStyle = 'rgba(139,130,255,0.7)';
+  ctx.lineWidth = 1;
+  // nucleus
+  ctx.beginPath();
+  ctx.arc(0, 0, r*0.22, 0, PI2);
+  ctx.fillStyle = 'rgba(108,99,255,0.6)';
+  ctx.fill();
+  // 3 orbit rings
+  const orbits = [0, Math.PI/3, -Math.PI/3];
+  orbits.forEach((angle, i) => {
+    ctx.save();
+    ctx.rotate(angle);
+    ctx.scale(1, 0.38);
+    ctx.beginPath();
+    ctx.arc(0, 0, r, 0, PI2);
+    ctx.strokeStyle = i === 0 ? 'rgba(108,99,255,0.6)' :
+                      i === 1 ? 'rgba(59,130,246,0.5)' :
+                                'rgba(196,192,255,0.4)';
+    ctx.stroke();
+    // electron
+    const ex = Math.cos(t * 1.2 + i*2.1) * r;
+    const ey = Math.sin(t * 1.2 + i*2.1) * r * 0.38;
+    ctx.restore();
+    ctx.save();
+    ctx.rotate(angle);
+    const eRealX = ex;
+    const eRealY = ey;
+    ctx.restore();
+    ctx.beginPath();
+    ctx.arc(Math.cos(t*1.2+i*2.1)*r * Math.cos(angle) - Math.sin(t*1.2+i*2.1)*r*0.38*Math.sin(angle),
+            Math.cos(t*1.2+i*2.1)*r * Math.sin(angle) + Math.sin(t*1.2+i*2.1)*r*0.38*Math.cos(angle),
+            3.5, 0, PI2);
+    ctx.fillStyle = ['rgba(196,192,255,0.9)', 'rgba(59,130,246,0.9)', 'rgba(139,130,255,0.9)'][i];
+    ctx.fill();
+  });
+}
+
+function drawBulb(ctx, sz) {
+  const r = sz * 0.38;
+  ctx.strokeStyle = 'rgba(139,130,255,0.75)';
+  ctx.fillStyle   = 'rgba(108,99,255,0.18)';
+  ctx.lineWidth   = 1.2;
+  // globe
+  ctx.beginPath();
+  ctx.arc(0, -r*0.1, r, Math.PI, 0, false);
+  ctx.quadraticCurveTo(r, r*0.6, r*0.3, r*0.7);
+  ctx.lineTo(-r*0.3, r*0.7);
+  ctx.quadraticCurveTo(-r, r*0.6, -r, -r*0.1);
+  ctx.closePath();
+  ctx.fill(); ctx.stroke();
+  // base
+  ctx.beginPath();
+  ctx.rect(-r*0.3, r*0.7, r*0.6, r*0.25);
+  ctx.fillStyle = 'rgba(59,130,246,0.3)';
+  ctx.fill(); ctx.stroke();
+  // filament lines
+  ctx.strokeStyle = 'rgba(196,192,255,0.55)';
+  ctx.lineWidth = 0.8;
+  [[-0.12, 0.2], [0, 0.35], [0.12, 0.2]].forEach(([ox, oy]) => {
+    ctx.beginPath();
+    ctx.moveTo(0, -r*0.1);
+    ctx.lineTo(ox*r, oy*r);
+    ctx.stroke();
+  });
+  // glow rays
+  ctx.strokeStyle = 'rgba(196,192,255,0.25)';
+  ctx.lineWidth = 0.7;
+  for (let i=0; i<6; i++) {
+    const a = (i/6)*PI2 - Math.PI/2;
+    ctx.beginPath();
+    ctx.moveTo(Math.cos(a)*r,    Math.sin(a)*r-r*0.1);
+    ctx.lineTo(Math.cos(a)*r*1.5, Math.sin(a)*r*1.5-r*0.1);
+    ctx.stroke();
+  }
+}
+
+function drawBgObject(ctx, obj, t) {
+  ctx.save();
+  ctx.translate(obj.x, obj.y);
+  ctx.rotate(obj.rot);
+  // soft glow
+  const g = ctx.createRadialGradient(0, 0, 0, 0, 0, obj.size * 1.1);
+  g.addColorStop(0, obj.hue === '#6c63ff'
+    ? `rgba(108,99,255,${obj.alpha * 0.25})`
+    : `rgba(59,130,246,${obj.alpha * 0.25})`);
+  g.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.beginPath(); ctx.arc(0, 0, obj.size * 1.1, 0, PI2);
+  ctx.fillStyle = g; ctx.fill();
+  ctx.globalAlpha = obj.alpha;
+  const s = obj.size / 55;
+  ctx.scale(s, s);
+  if      (obj.type === 'book')   drawBook(ctx, 55);
+  else if (obj.type === 'cap')    drawCap(ctx, 55);
+  else if (obj.type === 'pencil') drawPencil(ctx, 55);
+  else if (obj.type === 'atom')   drawAtom(ctx, 55, t);
+  else                            drawBulb(ctx, 55);
+  ctx.restore();
+}
+
+function updateBgObjects(t) {
+  const pFactor = 0.018;
+  bgObjects.forEach(obj => {
+    // parallax shift relative to mouse
+    const px = (mx - W/2) * pFactor * obj.depth;
+    const py = (my - H/2) * pFactor * obj.depth;
+    obj.x += obj.vx;
+    obj.y += obj.vy;
+    obj.rot += obj.rotV;
+    // wrap
+    const pad = obj.size * 2;
+    if (obj.x < -pad) obj.x = W + pad;
+    if (obj.x > W + pad) obj.x = -pad;
+    if (obj.y < -pad) obj.y = H + pad;
+    if (obj.y > H + pad) obj.y = -pad;
+    // store display position with parallax
+    obj.dx = obj.x - px;
+    obj.dy = obj.y - py;
+  });
+}
+
+// ─────────────────────────────────────────────
+// BACKGROUND LAYER 2 — Constellation
+// ─────────────────────────────────────────────
+const DOT_COLORS = ['#ffffff', '#8b82ff', '#3b82f6'];
+const DOT_SIZES  = [1.5, 2.5, 3.5];
+let dots = [];
+
+function makeDot() {
+  return {
+    x:  rand(0, W), y: rand(0, H),
+    vx: (Math.random() - 0.5) * 0.4,
+    vy: (Math.random() - 0.5) * 0.4,
+    r:  DOT_SIZES[randI(0, 3)],
+    col: DOT_COLORS[randI(0, 3)],
+    alpha: rand(0.4, 0.9),
+    pull: 0,
+  };
+}
+
+function initConstellation() {
+  dots = Array.from({length: 150}, makeDot);
+}
+initConstellation();
+
+function updateDots() {
+  const ATTRACT_RADIUS = 150;
+  const ATTRACT_FORCE  = 0.028;
+  dots.forEach(d => {
+    const ddx = mx - d.x, ddy = my - d.y;
+    const dist = Math.sqrt(ddx*ddx + ddy*ddy);
+    if (dist < ATTRACT_RADIUS) {
+      const f = (1 - dist/ATTRACT_RADIUS) * ATTRACT_FORCE;
+      d.vx += ddx * f;
+      d.vy += ddy * f;
+    }
+    // friction
+    d.vx *= 0.97; d.vy *= 0.97;
+    d.x += d.vx;  d.y += d.vy;
+    // bounce
+    if (d.x < 0) { d.x = 0; d.vx *= -1; }
+    if (d.x > W) { d.x = W; d.vx *= -1; }
+    if (d.y < 0) { d.y = 0; d.vy *= -1; }
+    if (d.y > H) { d.y = H; d.vy *= -1; }
+  });
+}
+
+function drawConstellation(ctx) {
+  ctx.clearRect(0, 0, W, H);
+  const LINK_DIST = 120;
+  // lines
+  for (let i=0; i<dots.length; i++) {
+    for (let j=i+1; j<dots.length; j++) {
+      const dx = dots[i].x - dots[j].x;
+      const dy = dots[i].y - dots[j].y;
+      const d  = Math.sqrt(dx*dx + dy*dy);
+      if (d < LINK_DIST) {
+        const op = (1 - d/LINK_DIST) * 0.3;
+        ctx.beginPath();
+        ctx.moveTo(dots[i].x, dots[i].y);
+        ctx.lineTo(dots[j].x, dots[j].y);
+        ctx.strokeStyle = `rgba(108,99,255,${op})`;
+        ctx.lineWidth   = 0.8;
+        ctx.stroke();
+      }
+    }
+  }
+  // dots
+  dots.forEach(d => {
+    ctx.beginPath();
+    ctx.arc(d.x, d.y, d.r, 0, PI2);
+    ctx.fillStyle = d.col;
+    ctx.globalAlpha = d.alpha;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  });
+}
+
+// ─────────────────────────────────────────────
+// FX LAYER — Gravity Cursor Particles
+// ─────────────────────────────────────────────
+const GRP_COLORS = ['#8b82ff','#3b82f6','#ffffff','#c4c0ff'];
+let grpItems = [];
+
+function makeGrp() {
+  return {
+    x: rand(0, W), y: rand(0, H),
+    vx: (Math.random()-0.5)*0.5,
+    vy: (Math.random()-0.5)*0.5,
+    r:  rand(2, 5),
+    col: GRP_COLORS[randI(0, GRP_COLORS.length)],
+    alpha: rand(0.5, 0.9),
+  };
+}
+
+function initGrp() { grpItems = Array.from({length: 80}, makeGrp); }
+initGrp();
+
+function updateGrp() {
+  const RANGE = 130, FORCE_K = 0.08;
+  grpItems.forEach(p => {
+    const dx = mx - p.x, dy = my - p.y;
+    const dist = Math.sqrt(dx*dx+dy*dy);
+    if (dist < RANGE && dist > 1) {
+      const f = ((RANGE - dist)/RANGE) * FORCE_K;
+      p.vx += (dx/dist)*f;
+      p.vy += (dy/dist)*f;
+    }
+    p.vx *= 0.96; p.vy *= 0.96;
+    p.x += p.vx;  p.y += p.vy;
+    if (p.x < 0) { p.x = 0; p.vx *= -0.7; }
+    if (p.x > W) { p.x = W; p.vx *= -0.7; }
+    if (p.y < 0) { p.y = 0; p.vy *= -0.7; }
+    if (p.y > H) { p.y = H; p.vy *= -0.7; }
+  });
+}
+
+function drawGrp(ctx) {
+  ctx.clearRect(0, 0, W, H);
+  grpItems.forEach(p => {
+    ctx.save();
+    ctx.globalAlpha = p.alpha;
+    ctx.shadowColor = p.col;
+    ctx.shadowBlur  = 8;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r, 0, PI2);
+    ctx.fillStyle = p.col;
+    ctx.fill();
+    ctx.restore();
+  });
+}
+
+// ─────────────────────────────────────────────
+// PORTAL OPENING ANIMATION
+// ─────────────────────────────────────────────
+let portalDone   = false;
+let portalStart  = null;
+const PORTAL_DUR = 3500; // ms total
+
+// Portal particles (burst)
+let portalParticles = [];
+
+function initPortalParticles() {
+  for (let i=0; i<200; i++) {
+    const angle = rand(0, PI2);
+    const speed = rand(1.5, 6);
+    portalParticles.push({
+      x: W/2, y: H/2,
+      vx: Math.cos(angle)*speed,
+      vy: Math.sin(angle)*speed,
+      life: 1, decay: rand(0.008, 0.022),
+      r: rand(1.5, 4),
+      col: ['#ffffff','#8b82ff','#3b82f6'][randI(0,3)],
+      active: false,
+    });
+  }
+}
+initPortalParticles();
+
+function drawPortal(ts) {
+  if (portalStart === null) portalStart = ts;
+  const el  = ts - portalStart;          // elapsed ms
+  const t   = el / PORTAL_DUR;           // 0 → 1
+  const overlay = $('portalOverlay');
+  if (t < 0) return;
+
+  pCtx.clearRect(0, 0, W, H);
+
+  // ── Background fill (fades from solid to transparent)
+  const bgAlpha = Math.max(0, 1 - Math.pow(t, 0.6));
+  pCtx.fillStyle = `rgba(8,8,16,${bgAlpha})`;
+  pCtx.fillRect(0, 0, W, H);
+
+  const cx = W/2, cy = H/2;
+  const maxR = Math.hypot(W, H) / 2 * 1.2;
+
+  // ── Stage 1: 0 – 0.42 ─ portal forms
+  if (t >= 0.14 && t < 0.71) {
+    const st = (t - 0.14) / 0.57;  // 0→1 within stage
+    const r  = st * st * 160;
+    // inner glow
+    const ig = pCtx.createRadialGradient(cx, cy, 0, cx, cy, r);
+    ig.addColorStop(0, `rgba(180,160,255,${0.5 * st})`);
+    ig.addColorStop(0.6, `rgba(108,99,255,${0.35 * st})`);
+    ig.addColorStop(1, 'rgba(0,0,0,0)');
+    pCtx.beginPath(); pCtx.arc(cx, cy, r, 0, PI2);
+    pCtx.fillStyle = ig; pCtx.fill();
+    // glowing edge ring
+    pCtx.save();
+    pCtx.shadowColor = '#8b82ff';
+    pCtx.shadowBlur  = 30 * st;
+    pCtx.beginPath(); pCtx.arc(cx, cy, r, 0, PI2);
+    pCtx.strokeStyle = `rgba(196,192,255,${0.95 * st})`;
+    pCtx.lineWidth   = 2.5;
+    pCtx.stroke();
+    pCtx.restore();
+    // rotating particle ring
+    const nr = 28;
+    for (let i=0; i<nr; i++) {
+      const a = (i/nr)*PI2 + ts*0.0018;
+      const px = cx + Math.cos(a)*(r+4);
+      const py = cy + Math.sin(a)*(r+4);
+      pCtx.beginPath(); pCtx.arc(px, py, 2.2, 0, PI2);
+      pCtx.fillStyle = i%2 === 0 ? `rgba(196,192,255,${st*0.9})` : `rgba(59,130,246,${st*0.7})`;
+      pCtx.fill();
+    }
+    // energy crackle arcs
+    if (st > 0.3) {
+      const nc = 6;
+      for (let i=0; i<nc; i++) {
+        const a0 = (i/nc)*PI2 + ts*0.001;
+        const a1 = a0 + rand(0.1, 0.4);
+        const rm = r * rand(0.8, 1.2);
+        pCtx.save();
+        pCtx.globalAlpha = rand(0.3, 0.7) * (st-0.3)/0.7;
+        pCtx.shadowColor = '#6c63ff'; pCtx.shadowBlur = 12;
+        pCtx.beginPath();
+        pCtx.arc(cx, cy, rm, a0, a1);
+        pCtx.strokeStyle = '#c4c0ff';
+        pCtx.lineWidth = 1.5;
+        pCtx.stroke();
+        pCtx.restore();
+      }
+    }
+  }
+
+  // ── Stage 2: 0.42 – 0.71 ─ burst
+  if (t >= 0.42) {
+    // activate particles
+    if (t < 0.5) {
+      portalParticles.forEach(p => {
+        if (!p.active) { p.active = true; p.life = 1; p.x = W/2; p.y = H/2; }
+      });
+    }
+    portalParticles.forEach(p => {
+      if (!p.active) return;
+      p.x += p.vx * 2.2;
+      p.y += p.vy * 2.2;
+      p.life -= p.decay;
+      if (p.life <= 0) { p.active = false; return; }
+      pCtx.save();
+      pCtx.globalAlpha = p.life * 0.8;
+      pCtx.shadowColor = p.col; pCtx.shadowBlur = 8;
+      pCtx.beginPath();
+      pCtx.arc(p.x, p.y, p.r * p.life, 0, PI2);
+      pCtx.fillStyle = p.col;
+      pCtx.fill();
+      pCtx.restore();
+    });
+
+    // flash
+    const st2 = Math.min(1, (t - 0.42) / 0.14);
+    const flashA = Math.sin(st2 * Math.PI) * 0.5;
+    if (flashA > 0) {
+      pCtx.fillStyle = `rgba(200,180,255,${flashA})`;
+      pCtx.fillRect(0, 0, W, H);
+    }
+    // ring expansion
+    const r2 = ((t-0.42)/0.29) * maxR * 1.6;
+    if (r2 > 0 && t < 0.71) {
+      pCtx.save();
+      pCtx.globalAlpha = Math.max(0, 1 - (t-0.42)/0.29) * 0.7;
+      pCtx.beginPath(); pCtx.arc(cx, cy, r2, 0, PI2);
+      pCtx.strokeStyle = '#8b82ff';
+      pCtx.lineWidth = 3; pCtx.stroke();
+      pCtx.restore();
+    }
+  }
+
+  // ── Stage 3: 0.71 – 1.0 ─ portal expands to fill screen
+  if (t >= 0.71) {
+    const st3 = (t - 0.71) / 0.29;
+    const r3  = st3 * maxR * 1.4;
+    // expanding circle cuts away overlay
+    pCtx.save();
+    pCtx.globalCompositeOperation = 'destination-out';
+    pCtx.beginPath(); pCtx.arc(cx, cy, r3, 0, PI2);
+    pCtx.fillStyle = 'rgba(0,0,0,1)';
+    pCtx.fill();
+    pCtx.restore();
+    // bright purple flash (brief)
+    const flashA3 = Math.max(0, 0.7 - st3*2.5) * 0.8;
+    if (flashA3 > 0) {
+      pCtx.fillStyle = `rgba(170,140,255,${flashA3})`;
+      pCtx.fillRect(0, 0, W, H);
+    }
+  }
+
+  // ── Done?
+  if (t >= 1) {
+    portalDone = true;
+    overlay.style.display = 'none';
+    $('loginWrapper').classList.add('visible');
+  }
+}
+
+// ─────────────────────────────────────────────
+// MAIN RENDER LOOP
+// ─────────────────────────────────────────────
+let lastT = 0;
+function loop(ts) {
+  const dt = ts - lastT; lastT = ts;
+
+  // ── BG objects
+  bgCtx.clearRect(0, 0, W, H);
+  bgCtx.fillStyle = '#080810';
+  bgCtx.fillRect(0, 0, W, H);
+  updateBgObjects(ts * 0.001);
+  bgObjects.forEach(obj => {
+    bgCtx.save();
+    bgCtx.translate(obj.dx ?? obj.x, obj.dy ?? obj.y);
+    bgCtx.rotate(obj.rot);
+    bgCtx.globalAlpha = obj.alpha;
+    const s = obj.size / 55;
+    bgCtx.scale(s, s);
+    if      (obj.type === 'book')   drawBook(bgCtx, 55);
+    else if (obj.type === 'cap')    drawCap(bgCtx, 55);
+    else if (obj.type === 'pencil') drawPencil(bgCtx, 55);
+    else if (obj.type === 'atom')   drawAtom(bgCtx, 55, ts*0.001);
+    else                            drawBulb(bgCtx, 55);
+    bgCtx.restore();
+  });
+
+  // ── Constellation
+  updateDots();
+  drawConstellation(conCtx);
+
+  // ── Gravity particles
+  updateGrp();
+  drawGrp(fxCtx);
+
+  // ── Portal
+  if (!portalDone) {
+    drawPortal(ts);
+  }
+
+  requestAnimationFrame(loop);
+}
+
+// ─────────────────────────────────────────────
+// UI INTERACTIONS
+// ─────────────────────────────────────────────
+function switchTab(tab) {
+  const si = $('tabSignIn'), re = $('tabRegister');
+  const sp = $('panelSignin'), rp = $('panelRegister');
+  if (tab === 'signin') {
+    si.classList.add('active'); re.classList.remove('active');
+    sp.classList.add('active'); rp.classList.remove('active');
+  } else {
+    re.classList.add('active'); si.classList.remove('active');
+    rp.classList.add('active'); sp.classList.remove('active');
+  }
+}
+
+function handleRipple(e, btn) {
+  const rect = btn.getBoundingClientRect();
+  const rp   = document.createElement('span');
+  rp.className = 'ripple';
+  const size = Math.max(btn.offsetWidth, btn.offsetHeight) * 0.6;
+  rp.style.width  = rp.style.height = size + 'px';
+  rp.style.left   = (e.clientX - rect.left - size/2) + 'px';
+  rp.style.top    = (e.clientY - rect.top  - size/2) + 'px';
+  btn.appendChild(rp);
+  rp.addEventListener('animationend', () => rp.remove());
+}
+
+// ─────────────────────────────────────────────
+// KICK OFF
+// ─────────────────────────────────────────────
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

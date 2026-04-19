@@ -12,8 +12,9 @@ import { useAuth } from "./contexts/AuthContext";
 import { getStudentCoachings } from "./services/firestoreService";
 
 // Public
-import LandingPage from "./components/public/LandingPage";
-import AuthScreen  from "./components/auth/AuthScreen";
+import LandingPage        from "./components/public/LandingPage";
+import AuthScreen         from "./components/auth/AuthScreen";
+import AnimatedBackground from "./components/public/AnimatedBackground";
 
 // Shared
 import Sidebar from "./components/shared/Sidebar";
@@ -324,36 +325,51 @@ export default function App() {
     );
   }
 
-  // Auth screen (login / register / incomplete setup)
-  if (authView) {
-    return (
-      <>
-        <Toaster {...TOASTER_CONFIG} />
-        <AuthScreen
-          initialTab={authView === "register" || authView === "register-admin" || authView === "register-tutor" ? "register" : "login"}
-          initialRegRole={
-            authView === "register-admin"  ? "admin"  :
-            authView === "register-tutor"  ? "tutor"  :
-            "student"
-          }
-          preSelectedCoaching={preSelectCoaching}
-          onGoHome={() => { setAuthView(null); setPreSelectCoaching(null); }}
-        />
-      </>
-    );
-  }
-
-  // Public landing page (default)
+  // ── Public pages (not logged in) ────────────────────────────
+  // AnimatedBackground always stays mounted so canvas persists
+  // across landing → auth → explore transitions.
   return (
     <>
       <Toaster {...TOASTER_CONFIG} />
-      <LandingPage
-        onShowAuth={(view) => setAuthView(view)}
-        preSelectCoaching={(coaching) => {
-          setPreSelectCoaching(coaching);
-          setAuthView("register");
-        }}
-      />
+
+      {/* Persistent animated canvas — z-index 1–4 */}
+      <AnimatedBackground />
+
+      {/* Custom cursor rendered once globally */}
+
+      {/* Auth screen floats over the background */}
+      {authView && (
+        <div style={{
+          position: "fixed", inset: 0, zIndex: 50,
+          background: "rgba(4,2,14,0.55)",
+          backdropFilter: "blur(4px)",
+          WebkitBackdropFilter: "blur(4px)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          overflowY: "auto",
+        }}>
+          <AuthScreen
+            initialTab={authView === "register" || authView === "register-admin" || authView === "register-tutor" ? "register" : "login"}
+            initialRegRole={
+              authView === "register-admin"  ? "admin"  :
+              authView === "register-tutor"  ? "tutor"  :
+              "student"
+            }
+            preSelectedCoaching={preSelectCoaching}
+            onGoHome={() => { setAuthView(null); setPreSelectCoaching(null); }}
+          />
+        </div>
+      )}
+
+      {/* Landing page UI (card + explore) — hidden when auth screen is open */}
+      {!authView && (
+        <LandingPage
+          onShowAuth={(view) => setAuthView(view)}
+          preSelectCoaching={(coaching) => {
+            setPreSelectCoaching(coaching);
+            setAuthView("register");
+          }}
+        />
+      )}
     </>
   );
 }

@@ -1,768 +1,295 @@
 // src/components/public/LandingPage.jsx
 // ============================================================
-// Public homepage — Mentoria360
-// Section 1: Coaching Institutes (with filters, address, reviews)
-// Section 2: Tutors (separate grid)
-// Includes: promo banner, years of experience, star ratings
+// UI layer only — no canvas here (canvas is in AnimatedBackground
+// which stays mounted in App.jsx).
+// Views: "home" | "explore"
 // ============================================================
 
-import React, { useEffect, useState, useRef } from "react";
-import { getAllCoachings, getAllTutors } from "../../services/firestoreService";
+import React, { useEffect, useRef, useState, useCallback } from "react";
+import { searchCoachings } from "../../services/firestoreService";
 
-const SUBJECTS = ["All", "IIT-JEE", "NEET", "UPSC", "Class 12", "Class 10", "Commerce", "Banking", "Mathematics", "Physics", "Computer Science"];
-
-function getInitials(name = "") {
-  return name.split(" ").filter(Boolean).slice(0, 2).map(n => n[0].toUpperCase()).join("");
-}
-
-const AVATAR_COLORS = [
-  ["#6366f1","#818cf8"], ["#8b5cf6","#a78bfa"], ["#ec4899","#f472b6"],
-  ["#06b6d4","#22d3ee"], ["#10b981","#34d399"], ["#f59e0b","#fbbf24"],
-  ["#ef4444","#f87171"], ["#3b82f6","#60a5fa"],
-];
-
-function getColor(name = "A") {
-  const i = (name.charCodeAt(0) || 65) % AVATAR_COLORS.length;
-  return AVATAR_COLORS[i];
-}
-
-function StarDisplay({ rating = 0, count = 0 }) {
-  const stars = Math.round(rating);
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-      <div style={{ display: "flex", gap: 1 }}>
-        {[1,2,3,4,5].map(i => (
-          <span key={i} style={{ fontSize: 11, color: i <= stars ? "#f59e0b" : "var(--border2)" }}>★</span>
-        ))}
-      </div>
-      {rating > 0 && (
-        <span style={{ fontSize: 11, color: "var(--text3)" }}>
-          {rating} ({count})
-        </span>
-      )}
-    </div>
-  );
-}
+// Module-level flag — survives React remounts (e.g. after closing auth screen)
+let _portalDone = false;
 
 export default function LandingPage({ onShowAuth, preSelectCoaching }) {
-  const [coachings, setCoachings] = useState([]);
-  const [tutors,    setTutors]    = useState([]);
-  const [loading,   setLoading]   = useState(true);
-  const [search,    setSearch]    = useState("");
-  const [tutorSearch, setTutorSearch] = useState("");
-  const [cityFilter, setCityFilter] = useState("All");
-  const [subFilter,  setSubFilter]  = useState("All");
-  const [activeSection, setActiveSection] = useState("coachings"); // "coachings" | "tutors"
-  const coachingsRef = useRef(null);
-  const tutorsRef    = useRef(null);
+  const [view,         setView]         = useState("home");
+  const [cardVisible,  setCardVisible]  = useState(false);
+  const [query,        setQuery]        = useState("");
+  const [results,      setResults]      = useState([]);
+  const [featured,     setFeatured]     = useState([]);
+  const [searching,    setSearching]    = useState(false);
+  const [exploreReady, setExploreReady] = useState(false);
 
+  // Show card after portal finishes. _portalDone persists across remounts.
   useEffect(() => {
-    Promise.all([getAllCoachings(), getAllTutors()])
-      .then(([c, t]) => { setCoachings(c); setTutors(t); })
-      .catch(() => {})
-      .finally(() => setLoading(false));
+    if (_portalDone) { setCardVisible(true); return; }
+    const onDone = () => { _portalDone = true; setCardVisible(true); };
+    window.addEventListener("m360PortalDone", onDone);
+    // Fallback: if already past portal time (should not normally happen on first load)
+    const t = setTimeout(() => { _portalDone = true; setCardVisible(true); }, 3900);
+    return () => { window.removeEventListener("m360PortalDone", onDone); clearTimeout(t); };
   }, []);
 
-  // Unique cities from data
-  const cities = ["All", ...Array.from(new Set(coachings.map(c => c.city).filter(Boolean)))];
+  // Pre-load featured coachings
+  useEffect(() => {
+    searchCoachings("").then(r => setFeatured(r.slice(0, 12))).catch(() => {});
+  }, []);
 
-  const filteredCoachings = coachings.filter(c => {
-    const q = search.toLowerCase();
-    const matchSearch = !q || c.name?.toLowerCase().includes(q) || c.city?.toLowerCase().includes(q)
-      || c.subject?.toLowerCase().includes(q) || c.address?.toLowerCase().includes(q);
-    const matchCity = cityFilter === "All" || c.city === cityFilter;
-    const matchSub  = subFilter  === "All" || c.subject?.toLowerCase().includes(subFilter.toLowerCase());
-    return matchSearch && matchCity && matchSub;
-  });
+  const handleSearch = useCallback(async (q) => {
+    setQuery(q);
+    if (!q.trim()) { setResults([]); return; }
+    setSearching(true);
+    try { setResults(await searchCoachings(q)); }
+    catch { setResults([]); }
+    finally { setSearching(false); }
+  }, []);
 
-  const filteredTutors = tutors.filter(t => {
-    const q = tutorSearch.toLowerCase();
-    return !q || t.name?.toLowerCase().includes(q) || t.subject?.toLowerCase().includes(q)
-      || t.city?.toLowerCase().includes(q);
-  });
-
-  const totalStudents = coachings.reduce((s, c) => s + (c.students?.length || 0), 0);
-
-  const scrollTo = (section) => {
-    setActiveSection(section);
-    const ref = section === "coachings" ? coachingsRef : tutorsRef;
-    ref.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  const openExplore = () => {
+    setView("explore");
+    setExploreReady(false);
+    setTimeout(() => setExploreReady(true), 60);
+  };
+  const closeExplore = () => {
+    setExploreReady(false);
+    setTimeout(() => setView("home"), 300);
   };
 
   return (
-    <div style={{ minHeight: "100vh", background: "var(--bg)", fontFamily: "DM Sans, sans-serif" }}>
+    <>
+      <style>{`
+        @keyframes m360Float0{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+        @keyframes m360Float1{0%,100%{transform:translateY(-4px)}50%{transform:translateY(4px)}}
+        @keyframes m360Float2{0%,100%{transform:translateY(-2px)}50%{transform:translateY(7px)}}
+        @keyframes m360Float3{0%,100%{transform:translateY(-6px)}50%{transform:translateY(2px)}}
+        @keyframes m360CardFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
+        @keyframes m360SlideUp{from{opacity:0;transform:translateY(32px)}to{opacity:1;transform:translateY(0)}}
+        @keyframes m360FadeIn{from{opacity:0}to{opacity:1}}
+        .m360-scroll::-webkit-scrollbar{width:5px}
+        .m360-scroll::-webkit-scrollbar-track{background:rgba(108,99,255,0.04)}
+        .m360-scroll::-webkit-scrollbar-thumb{background:rgba(108,99,255,0.3);border-radius:3px}
+        .m360-ccard{transition:transform 0.25s ease,box-shadow 0.25s ease,border-color 0.25s ease;}
+        .m360-ccard:hover{transform:translateY(-6px) scale(1.02)!important;box-shadow:0 16px 48px rgba(108,50,255,0.3),0 0 0 1px rgba(139,130,255,0.45)!important;border-color:rgba(139,130,255,0.5)!important;}
+      `}</style>
 
-      {/* ── Top Nav ───────────────────────────────────────── */}
-      <nav style={{
-        position: "sticky", top: 0, zIndex: 100,
-        background: "rgba(13,13,26,0.92)", backdropFilter: "blur(20px)",
-        borderBottom: "1px solid var(--border)",
-        padding: "0 16px", height: 60,
-        display: "flex", alignItems: "center", justifyContent: "space-between",
-        gap: 8,
-      }}>
-        {/* Brand */}
-        <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+      {/* Custom cursor */}
+      <M360Cursor />
+
+      {/* ═══════════ VIEW 1 — Home card ═══════════ */}
+      {view === "home" && (
+        <div style={{position:"fixed",inset:0,zIndex:20,display:"flex",alignItems:"center",justifyContent:"center",pointerEvents:"none"}}>
           <div style={{
-            width: 32, height: 32,
-            background: "linear-gradient(135deg, var(--accent), #8b5cf6)",
-            borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center",
-            flexShrink: 0,
+            width: 370,
+            background: "rgba(8,6,24,0.92)",
+            border: "1px solid rgba(139,130,255,0.4)",
+            borderRadius: 24,
+            backdropFilter: "blur(28px)",
+            WebkitBackdropFilter: "blur(28px)",
+            padding: "42px 38px",
+            boxShadow: "0 0 80px rgba(108,50,255,0.2),0 0 160px rgba(59,130,246,0.08),inset 0 1px 0 rgba(255,255,255,0.07)",
+            pointerEvents: "all",
+            opacity: cardVisible ? 1 : 0,
+            transform: cardVisible ? "translateY(0)" : "translateY(40px)",
+            transition: "opacity 0.9s ease, transform 0.9s ease",
+            animation: cardVisible ? "m360CardFloat 4s ease-in-out infinite" : "none",
           }}>
-            <svg width="17" height="17" viewBox="0 0 24 24" fill="#fff">
-              <path d="M12 3L1 9l11 6 9-4.91V17h2V9L12 3zm-2 11.5v3.5L12 19l2-1v-3.5L12 16l-2-1.5z"/>
-            </svg>
-          </div>
-          <span className="landing-brand-text" style={{ fontFamily: "Syne, sans-serif", fontWeight: 800, fontSize: 18, color: "var(--accent2)", whiteSpace: "nowrap" }}>
-            Mentoria360
-          </span>
-        </div>
-
-        {/* Nav tabs — hidden on mobile, shown on desktop */}
-        <div className="landing-nav-tabs" style={{ display: "flex", gap: 4, flex: 1, justifyContent: "center" }}>
-          <button
-            onClick={() => scrollTo("coachings")}
-            style={{
-              background: activeSection === "coachings" ? "var(--accent-bg)" : "none",
-              border: activeSection === "coachings" ? "1px solid rgba(108,99,255,0.4)" : "1px solid transparent",
-              color: activeSection === "coachings" ? "var(--accent2)" : "var(--text2)",
-              borderRadius: 8, padding: "6px 14px", fontSize: 13, fontWeight: 600, cursor: "pointer",
-              fontFamily: "DM Sans, sans-serif", transition: "all 0.2s", whiteSpace: "nowrap",
-            }}
-          >
-            🏫 Coachings
-          </button>
-          <button
-            onClick={() => scrollTo("tutors")}
-            style={{
-              background: activeSection === "tutors" ? "var(--accent-bg)" : "none",
-              border: activeSection === "tutors" ? "1px solid rgba(108,99,255,0.4)" : "1px solid transparent",
-              color: activeSection === "tutors" ? "var(--accent2)" : "var(--text2)",
-              borderRadius: 8, padding: "6px 14px", fontSize: 13, fontWeight: 600, cursor: "pointer",
-              fontFamily: "DM Sans, sans-serif", transition: "all 0.2s", whiteSpace: "nowrap",
-            }}
-          >
-            👨‍🏫 Tutors
-          </button>
-        </div>
-
-        <div style={{ display: "flex", gap: 8, alignItems: "center", flexShrink: 0 }}>
-          <button className="btn btn-secondary btn-sm landing-signin-btn" onClick={() => onShowAuth("login")}>Sign In</button>
-          <button className="btn btn-primary btn-sm" onClick={() => onShowAuth("register")} style={{ whiteSpace: "nowrap" }}>Register</button>
-        </div>
-      </nav>
-
-      {/* ── Mobile section switcher (shown only on small screens) */}
-      <div className="landing-mobile-tabs">
-        <button
-          onClick={() => scrollTo("coachings")}
-          style={{
-            flex: 1, padding: "9px 0", border: "none",
-            background: activeSection === "coachings" ? "var(--accent-bg)" : "transparent",
-            color: activeSection === "coachings" ? "var(--accent2)" : "var(--text2)",
-            borderBottom: activeSection === "coachings" ? "2px solid var(--accent)" : "2px solid transparent",
-            fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: "DM Sans, sans-serif",
-          }}
-        >🏫 Coachings</button>
-        <button
-          onClick={() => scrollTo("tutors")}
-          style={{
-            flex: 1, padding: "9px 0", border: "none",
-            background: activeSection === "tutors" ? "var(--accent-bg)" : "transparent",
-            color: activeSection === "tutors" ? "var(--accent2)" : "var(--text2)",
-            borderBottom: activeSection === "tutors" ? "2px solid var(--accent)" : "2px solid transparent",
-            fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: "DM Sans, sans-serif",
-          }}
-        >👨‍🏫 Tutors</button>
-      </div>
-
-      {/* ── Hero Section ──────────────────────────────────── */}
-      <div style={{
-        background: "linear-gradient(135deg, rgba(99,102,241,0.15) 0%, rgba(139,92,246,0.08) 50%, transparent 100%)",
-        borderBottom: "1px solid var(--border)",
-        padding: "clamp(32px, 8vw, 64px) 16px clamp(28px, 6vw, 48px)",
-        textAlign: "center",
-        position: "relative",
-        overflow: "hidden",
-      }}>
-        <div style={{
-          position: "absolute", top: -100, left: "50%", transform: "translateX(-50%)",
-          width: 600, height: 300,
-          background: "radial-gradient(ellipse, rgba(99,102,241,0.2) 0%, transparent 70%)",
-          pointerEvents: "none",
-        }} />
-
-        <div style={{ position: "relative" }}>
-          <div style={{
-            display: "inline-flex", alignItems: "center", gap: 8,
-            background: "rgba(99,102,241,0.15)", border: "1px solid rgba(99,102,241,0.3)",
-            borderRadius: 20, padding: "4px 14px", marginBottom: 20,
-          }}>
-            <div style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--green)", animation: "pulse 2s infinite" }} />
-            <span style={{ fontSize: 12, color: "var(--accent2)", fontWeight: 600 }}>
-              {coachings.length} Institutes · {tutors.length} Tutors Listed
-            </span>
-          </div>
-
-          <h1 style={{
-            fontFamily: "Syne, sans-serif", fontSize: "clamp(26px, 7vw, 60px)",
-            fontWeight: 900, lineHeight: 1.1, marginBottom: 14,
-            background: "linear-gradient(135deg, #fff 0%, var(--accent2) 100%)",
-            WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
-          }}>
-            Find Your Perfect<br />Coach or Institute
-          </h1>
-          <p style={{ fontSize: "clamp(13px, 3.5vw, 16px)", color: "var(--text2)", maxWidth: 520, margin: "0 auto 28px" }}>
-            Discover top coaching centres & private tutors for IIT-JEE, NEET, UPSC & more.
-            Browse, compare, and join — all in one place.
-          </p>
-
-          {/* Search bar */}
-          <div style={{
-            display: "flex", maxWidth: 560, margin: "0 auto",
-            background: "var(--bg2)", border: "1px solid var(--border)",
-            borderRadius: 14, overflow: "hidden", boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
-          }}>
-            <div style={{ display: "flex", alignItems: "center", padding: "0 14px", color: "var(--text3)", flexShrink: 0 }}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
-              </svg>
+            {/* Logo */}
+            <div style={{textAlign:"center",marginBottom:28}}>
+              <div style={{width:56,height:56,borderRadius:"50%",background:"linear-gradient(135deg,#6c3ff5,#3b82f6)",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 13px",fontFamily:"Syne,sans-serif",fontWeight:800,fontSize:23,color:"#fff",boxShadow:"0 0 24px rgba(108,50,255,0.75),0 0 60px rgba(108,50,255,0.28)"}}>M</div>
+              <div style={{fontFamily:"Syne,sans-serif",fontWeight:800,fontSize:30,background:"linear-gradient(90deg,#a78bfa,#e0d8ff,#a78bfa)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",backgroundClip:"text",lineHeight:1.15,marginBottom:7,letterSpacing:"-0.3px"}}>Mentoria360</div>
+              <div style={{fontSize:10,color:"#6b5faa",letterSpacing:"0.18em",textTransform:"uppercase",fontWeight:600}}>Where Knowledge Begins</div>
             </div>
-            <input
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="Search institutes, subjects, city..."
-              style={{
-                flex: 1, background: "none", border: "none", outline: "none",
-                fontSize: 14, color: "var(--text)", padding: "12px 0", minWidth: 0,
-              }}
-            />
-            {search && (
-              <button onClick={() => setSearch("")} style={{ background: "none", border: "none", color: "var(--text3)", padding: "0 14px", cursor: "pointer", fontSize: 18, flexShrink: 0 }}>×</button>
-            )}
-          </div>
-        </div>
-      </div>
 
-      {/* ── Stats Banner ──────────────────────────────────── */}
-      <div style={{
-        display: "flex", justifyContent: "center",
-        background: "var(--bg2)", borderBottom: "1px solid var(--border)",
-        flexWrap: "wrap",
-      }}>
-        {[
-          { label: "Institutes", value: coachings.length, icon: "🏫" },
-          { label: "Tutors",     value: tutors.length,    icon: "👨‍🏫" },
-          { label: "Students",   value: totalStudents,    icon: "👨‍🎓" },
-          { label: "Subjects",   value: "10+",            icon: "📚" },
-        ].map((s, i) => (
-          <div key={i} style={{
-            padding: "14px 20px", textAlign: "center", flex: "1 1 70px",
-          }}>
-            <div style={{ fontSize: 18 }}>{s.icon}</div>
-            <div style={{ fontSize: 20, fontWeight: 800, color: "var(--text)", fontFamily: "Syne, sans-serif" }}>{s.value}</div>
-            <div style={{ fontSize: 10, color: "var(--text3)", textTransform: "uppercase", letterSpacing: "0.06em" }}>{s.label}</div>
-          </div>
-        ))}
-      </div>
+            <CardBtn primary onClick={() => onShowAuth("login")} mb={10}>Sign In →</CardBtn>
+            <CardBtn onClick={() => onShowAuth("register")} mb={14}>Create Account</CardBtn>
 
-      {/* ── BIG PROMO BANNER ──────────────────────────────── */}
-      <div
-        className="promo-glow"
-        style={{
-          background: "linear-gradient(135deg, rgba(108,99,255,0.12) 0%, rgba(139,92,246,0.08) 100%)",
-          border: "1px solid rgba(108,99,255,0.3)",
-          borderRadius: 16,
-          margin: "16px",
-          padding: "18px 18px",
-          display: "flex",
-          alignItems: "flex-start",
-          justifyContent: "space-between",
-          flexWrap: "wrap",
-          gap: 14,
-        }}
-      >
-        <div style={{ flex: "1 1 200px", minWidth: 0 }}>
-          <div style={{ fontSize: 22, marginBottom: 4 }}>🚀</div>
-          <h2 style={{
-            fontFamily: "Syne, sans-serif", fontSize: "clamp(14px, 4vw, 22px)",
-            fontWeight: 900, color: "#fff", marginBottom: 6,
-          }}>
-            List your institute on Mentoria360!
-          </h2>
-          <p style={{ color: "var(--text2)", fontSize: 13 }}>
-            Reach thousands of students. Manage attendance, fees, classes & more — all free.
-          </p>
-        </div>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", flexShrink: 0 }}>
-          <button
-            className="btn btn-primary btn-sm"
-            onClick={() => onShowAuth("register-admin")}
-            style={{ fontWeight: 700 }}
-          >
-            Register Institute →
-          </button>
-          <button
-            className="btn btn-secondary btn-sm"
-            onClick={() => onShowAuth("register-tutor")}
-            style={{ fontWeight: 700 }}
-          >
-            Register as Tutor →
-          </button>
-        </div>
-      </div>
+            {/* Divider */}
+            <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
+              <div style={{flex:1,height:1,background:"rgba(139,130,255,0.18)"}}/>
+              <span style={{fontSize:10,color:"#4a3880",letterSpacing:"0.06em",fontWeight:600}}>OR</span>
+              <div style={{flex:1,height:1,background:"rgba(139,130,255,0.18)"}}/>
+            </div>
 
-      {/* ───────────────────────────────────────────────────── */}
-      {/* ── COACHINGS SECTION ─────────────────────────────── */}
-      {/* ───────────────────────────────────────────────────── */}
-      <div ref={coachingsRef} style={{ maxWidth: 1240, margin: "0 auto", padding: "0 16px 48px" }}>
-
-        {/* Section header */}
-        <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "32px 0 20px" }}>
-          <div style={{
-            width: 42, height: 42, borderRadius: 10,
-            background: "linear-gradient(135deg, var(--accent), #8b5cf6)",
-            display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20,
-          }}>🏫</div>
-          <div>
-            <h2 style={{ fontFamily: "Syne, sans-serif", fontSize: 22, fontWeight: 800 }}>Coaching Institutes</h2>
-            <p style={{ color: "var(--text2)", fontSize: 13 }}>Browse verified coaching centres near you</p>
-          </div>
-        </div>
-
-        {/* Filters */}
-        <div style={{ padding: "16px 0", borderBottom: "1px solid var(--border)", marginBottom: 20 }}>
-          <div style={{ display: "flex", gap: 12, marginBottom: 10, flexWrap: "wrap", alignItems: "center" }}>
-            <span style={{ fontSize: 11, color: "var(--text3)", textTransform: "uppercase", letterSpacing: "0.07em" }}>📍 City:</span>
-            {cities.slice(0, 8).map(c => (
-              <button key={c}
-                className={`btn btn-sm ${cityFilter === c ? "btn-primary" : "btn-secondary"}`}
-                style={{ fontSize: 12 }}
-                onClick={() => setCityFilter(c)}
-              >
-                {c}
-              </button>
-            ))}
-          </div>
-          <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
-            <span style={{ fontSize: 11, color: "var(--text3)", textTransform: "uppercase", letterSpacing: "0.07em" }}>📚 Subject:</span>
-            {SUBJECTS.map(s => (
-              <button key={s}
-                className={`btn btn-sm ${subFilter === s ? "btn-primary" : "btn-secondary"}`}
-                style={{ fontSize: 12 }}
-                onClick={() => setSubFilter(s)}
-              >
-                {s}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Results info */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-          <p style={{ fontSize: 13, color: "var(--text2)" }}>
-            {loading ? "Loading institutes..." : `Showing ${filteredCoachings.length} of ${coachings.length} institutes`}
-            {(search || cityFilter !== "All" || subFilter !== "All") && (
-              <button
-                onClick={() => { setSearch(""); setCityFilter("All"); setSubFilter("All"); }}
-                style={{ marginLeft: 12, fontSize: 11, color: "var(--accent)", background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}
-              >
-                Clear filters
-              </button>
-            )}
-          </p>
-          <div style={{ fontSize: 12, color: "var(--text3)" }}>🔥 Updated live</div>
-        </div>
-
-        {loading && (
-          <div style={{ textAlign: "center", padding: "80px 0" }}>
-            <span className="spinner" style={{ width: 40, height: 40 }} />
-            <p style={{ color: "var(--text3)", marginTop: 16, fontSize: 14 }}>Discovering institutes...</p>
-          </div>
-        )}
-
-        {!loading && filteredCoachings.length === 0 && (
-          <div style={{ textAlign: "center", padding: "60px 0" }}>
-            <div style={{ fontSize: 48, marginBottom: 12 }}>🔍</div>
-            <h3 style={{ fontFamily: "Syne, sans-serif", fontSize: 20, marginBottom: 8 }}>No institutes found</h3>
-            <p style={{ color: "var(--text2)", fontSize: 14 }}>Try adjusting your search or filters</p>
-            <button className="btn btn-secondary" style={{ marginTop: 16 }} onClick={() => { setSearch(""); setCityFilter("All"); setSubFilter("All"); }}>
-              Clear All Filters
+            <button onClick={openExplore} style={{
+              width:"100%",padding:"13px",border:"1px solid rgba(59,130,246,0.45)",borderRadius:12,
+              background:"rgba(20,40,100,0.25)",color:"#93c5fd",
+              fontFamily:"DM Sans,sans-serif",fontSize:14,fontWeight:600,cursor:"pointer",
+              letterSpacing:"0.03em",display:"flex",alignItems:"center",justifyContent:"center",gap:9,
+              transition:"all 0.22s",boxShadow:"0 0 20px rgba(59,130,246,0.08)",
+            }}
+            onMouseEnter={e=>{e.currentTarget.style.background="rgba(30,70,180,0.3)";e.currentTarget.style.borderColor="rgba(59,130,246,0.75)";e.currentTarget.style.boxShadow="0 0 32px rgba(59,130,246,0.25)";e.currentTarget.style.transform="scale(1.02)";}}
+            onMouseLeave={e=>{e.currentTarget.style.background="rgba(20,40,100,0.25)";e.currentTarget.style.borderColor="rgba(59,130,246,0.45)";e.currentTarget.style.boxShadow="0 0 20px rgba(59,130,246,0.08)";e.currentTarget.style.transform="scale(1)";}}>
+              <span style={{fontSize:17}}>🔭</span> Explore Coachings
             </button>
+
+            <div style={{textAlign:"center",marginTop:16,fontSize:11,color:"#2e2460",letterSpacing:"0.05em"}}>
+              ✦ &nbsp;Coaching · Students · Tutors&nbsp; ✦
+            </div>
           </div>
-        )}
-
-        <div className="coaching-grid">
-          {filteredCoachings.map(c => (
-            <CoachingCard
-              key={c.id}
-              coaching={c}
-              onJoin={() => { preSelectCoaching(c); onShowAuth("register"); }}
-            />
-          ))}
         </div>
-      </div>
+      )}
 
-      {/* ───────────────────────────────────────────────────── */}
-      {/* ── TUTORS SECTION ────────────────────────────────── */}
-      {/* ───────────────────────────────────────────────────── */}
-      <div
-        ref={tutorsRef}
-        style={{
-          borderTop: "2px solid var(--border)",
-          background: "linear-gradient(180deg, rgba(139,92,246,0.05) 0%, transparent 60%)",
-          padding: "0 16px 60px",
-        }}
-      >
-        <div style={{ maxWidth: 1240, margin: "0 auto" }}>
-          {/* Section header */}
-          <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "32px 0 20px" }}>
-            <div style={{
-              width: 42, height: 42, borderRadius: 10,
-              background: "linear-gradient(135deg, #8b5cf6, #ec4899)",
-              display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20,
-            }}>👨‍🏫</div>
-            <div>
-              <h2 style={{ fontFamily: "Syne, sans-serif", fontSize: 22, fontWeight: 800 }}>Private Tutors</h2>
-              <p style={{ color: "var(--text2)", fontSize: 13 }}>One-on-one learning with expert tutors</p>
+      {/* ═══════════ VIEW 2 — Full-page Explore ═══════════ */}
+      {view === "explore" && (
+        <div style={{
+          position:"fixed",inset:0,zIndex:20,
+          display:"flex",flexDirection:"column",
+          overflowY:"auto",
+          opacity: exploreReady ? 1 : 0,
+          transition: "opacity 0.3s ease",
+        }}>
+          {/* ── sticky header ─────────────────── */}
+          <div style={{
+            position:"sticky",top:0,zIndex:30,
+            background:"rgba(6,4,20,0.88)",
+            backdropFilter:"blur(24px)",WebkitBackdropFilter:"blur(24px)",
+            borderBottom:"1px solid rgba(139,130,255,0.2)",
+            padding:"14px 36px",
+            display:"flex",alignItems:"center",gap:18,
+            boxShadow:"0 4px 40px rgba(0,0,0,0.5)",
+          }}>
+            <button onClick={closeExplore} style={{padding:"9px 18px",border:"1px solid rgba(139,130,255,0.35)",borderRadius:10,background:"rgba(139,130,255,0.12)",color:"#c4b5fd",fontFamily:"DM Sans,sans-serif",fontSize:13,fontWeight:600,cursor:"pointer",flexShrink:0,transition:"all 0.2s"}} onMouseEnter={e=>{e.currentTarget.style.background="rgba(139,130,255,0.22)";}} onMouseLeave={e=>{e.currentTarget.style.background="rgba(139,130,255,0.12)";}}>← Back</button>
+
+            <div style={{fontFamily:"Syne,sans-serif",fontWeight:800,fontSize:18,background:"linear-gradient(90deg,#a78bfa,#e0d8ff)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",backgroundClip:"text",flexShrink:0}}>Mentoria360</div>
+
+            <div style={{flex:1,position:"relative",maxWidth:480}}>
+              <span style={{position:"absolute",left:13,top:"50%",transform:"translateY(-50%)",fontSize:14,opacity:0.55,pointerEvents:"none"}}>🔍</span>
+              <input value={query} onChange={e=>handleSearch(e.target.value)} placeholder="Search by name, city, or subject..." style={{width:"100%",padding:"10px 14px 10px 38px",background:"rgba(139,130,255,0.1)",border:"1px solid rgba(139,130,255,0.25)",borderRadius:11,color:"#e8e0ff",fontFamily:"DM Sans,sans-serif",fontSize:13,outline:"none",transition:"all 0.2s"}} onFocus={e=>{e.target.style.borderColor="rgba(167,139,250,0.7)";e.target.style.boxShadow="0 0 0 3px rgba(108,99,255,0.15)";}} onBlur={e=>{e.target.style.borderColor="rgba(139,130,255,0.25)";e.target.style.boxShadow="none";}} />
+            </div>
+
+            {/* register buttons in header */}
+            <button onClick={() => onShowAuth("register-admin")} style={{padding:"9px 16px",border:"1px solid rgba(167,139,250,0.45)",borderRadius:10,background:"rgba(108,50,255,0.18)",color:"#c4b5fd",fontFamily:"DM Sans,sans-serif",fontSize:12,fontWeight:600,cursor:"pointer",flexShrink:0,whiteSpace:"nowrap",transition:"all 0.2s"}} onMouseEnter={e=>{e.currentTarget.style.background="rgba(108,50,255,0.32)";}} onMouseLeave={e=>{e.currentTarget.style.background="rgba(108,50,255,0.18)";}}> 🏫 Register Coaching</button>
+
+            <button onClick={() => onShowAuth("register-tutor")} style={{padding:"9px 16px",border:"1px solid rgba(59,130,246,0.45)",borderRadius:10,background:"rgba(20,60,180,0.18)",color:"#93c5fd",fontFamily:"DM Sans,sans-serif",fontSize:12,fontWeight:600,cursor:"pointer",flexShrink:0,whiteSpace:"nowrap",transition:"all 0.2s"}} onMouseEnter={e=>{e.currentTarget.style.background="rgba(20,60,180,0.32)";}} onMouseLeave={e=>{e.currentTarget.style.background="rgba(20,60,180,0.18)";}}> 👨‍🏫 Register as Tutor</button>
+
+            <button onClick={() => onShowAuth("login")} style={{padding:"9px 20px",border:"none",borderRadius:10,background:"linear-gradient(135deg,#6c3ff5,#8b82ff)",color:"#fff",fontFamily:"DM Sans,sans-serif",fontSize:13,fontWeight:600,cursor:"pointer",flexShrink:0,boxShadow:"0 4px 16px rgba(108,50,255,0.4)",transition:"transform 0.2s"}} onMouseEnter={e=>e.currentTarget.style.transform="scale(1.05)"} onMouseLeave={e=>e.currentTarget.style.transform="scale(1)"}>Sign In</button>
+          </div>
+
+          {/* ── hero ──────────────────────────── */}
+          <div style={{textAlign:"center",padding:"44px 40px 28px",animation:"m360FadeIn 0.45s ease"}}>
+            <div style={{fontFamily:"Syne,sans-serif",fontWeight:800,fontSize:34,background:"linear-gradient(90deg,#a78bfa,#e0d8ff,#a78bfa)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",backgroundClip:"text",marginBottom:9}}>
+              {query ? `Results for "${query}"` : "Discover Coaching Institutes"}
+            </div>
+            <div style={{color:"#8878cc",fontSize:14}}>
+              {query ? `${results.length} coaching${results.length!==1?"s":""} found` : `Browse institutes · Join as student · Or register your coaching`}
             </div>
           </div>
 
-          {/* Tutor search */}
-          <div style={{ marginBottom: 20, maxWidth: 400 }}>
-            <div style={{
-              display: "flex",
-              background: "var(--bg2)", border: "1px solid var(--border)",
-              borderRadius: 10, overflow: "hidden",
-            }}>
-              <div style={{ display: "flex", alignItems: "center", padding: "0 12px", color: "var(--text3)" }}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
-                </svg>
+          {/* ── "Register your institute" banner ─ */}
+          {!query && (
+            <div style={{padding:"0 36px 24px",animation:"m360FadeIn 0.5s ease 0.1s both"}}>
+              <div style={{
+                background:"rgba(8,6,24,0.88)",
+                border:"1px solid rgba(139,130,255,0.3)",
+                borderRadius:20,
+                padding:"24px 32px",
+                backdropFilter:"blur(20px)",
+                display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:20,
+                boxShadow:"0 8px 40px rgba(108,50,255,0.12),inset 0 1px 0 rgba(255,255,255,0.05)",
+              }}>
+                <div>
+                  <div style={{fontFamily:"Syne,sans-serif",fontWeight:700,fontSize:18,color:"#e0d8ff",marginBottom:5}}>🏫 Run a Coaching Institute?</div>
+                  <div style={{color:"#7a6aa8",fontSize:13}}>Register your institute on Mentoria360 and manage students, fees, classes & more.</div>
+                </div>
+                <div style={{display:"flex",gap:12,flexWrap:"wrap"}}>
+                  <button onClick={() => onShowAuth("register-admin")} style={{padding:"12px 24px",border:"none",borderRadius:12,background:"linear-gradient(135deg,#6c3ff5,#8b82ff)",color:"#fff",fontFamily:"DM Sans,sans-serif",fontSize:14,fontWeight:700,cursor:"pointer",boxShadow:"0 6px 22px rgba(108,50,255,0.45)",transition:"transform 0.2s,box-shadow 0.2s"}} onMouseEnter={e=>{e.currentTarget.style.transform="scale(1.04)";e.currentTarget.style.boxShadow="0 8px 30px rgba(108,50,255,0.6)";}} onMouseLeave={e=>{e.currentTarget.style.transform="scale(1)";e.currentTarget.style.boxShadow="0 6px 22px rgba(108,50,255,0.45)";}}>Register as Coaching →</button>
+                  <button onClick={() => onShowAuth("register-tutor")} style={{padding:"12px 24px",border:"1px solid rgba(59,130,246,0.5)",borderRadius:12,background:"rgba(20,60,180,0.22)",color:"#93c5fd",fontFamily:"DM Sans,sans-serif",fontSize:14,fontWeight:700,cursor:"pointer",transition:"all 0.2s"}} onMouseEnter={e=>{e.currentTarget.style.background="rgba(30,80,220,0.35)";e.currentTarget.style.borderColor="rgba(59,130,246,0.75)";}} onMouseLeave={e=>{e.currentTarget.style.background="rgba(20,60,180,0.22)";e.currentTarget.style.borderColor="rgba(59,130,246,0.5)";}}>Join as Tutor →</button>
+                </div>
               </div>
-              <input
-                value={tutorSearch}
-                onChange={e => setTutorSearch(e.target.value)}
-                placeholder="Search tutors by name, subject, city..."
-                style={{ flex: 1, background: "none", border: "none", outline: "none", fontSize: 13, color: "var(--text)", padding: "10px 0" }}
-              />
-            </div>
-          </div>
-
-          {!loading && tutors.length === 0 && (
-            <div style={{ textAlign: "center", padding: "60px 0" }}>
-              <div style={{ fontSize: 48, marginBottom: 12 }}>👨‍🏫</div>
-              <h3 style={{ fontFamily: "Syne, sans-serif", fontSize: 20, marginBottom: 8 }}>No tutors listed yet</h3>
-              <p style={{ color: "var(--text2)", fontSize: 14, marginBottom: 20 }}>
-                Are you a tutor? Register on Mentoria360 and reach hundreds of students!
-              </p>
-              <button className="btn btn-primary" onClick={() => onShowAuth("register-tutor")}>
-                Register as Tutor →
-              </button>
             </div>
           )}
 
-          <div className="tutors-grid">
-            {filteredTutors.map(t => (
-              <TutorCard key={t.id} tutor={t} onContact={() => onShowAuth("login")} />
+          {/* ── coaching grid ──────────────────── */}
+          <div style={{padding:"0 36px 60px",display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(290px,1fr))",gap:22,maxWidth:1400,margin:"0 auto",width:"100%",boxSizing:"border-box"}}>
+            {searching && <div style={{gridColumn:"1/-1",textAlign:"center",padding:60,color:"#8878cc",fontSize:14}}><div style={{fontSize:32,marginBottom:12}}>✨</div>Searching...</div>}
+            {!searching && (query?results:featured).length===0 && (
+              <div style={{gridColumn:"1/-1",textAlign:"center",padding:60}}>
+                <div style={{fontSize:48,marginBottom:16}}>🔭</div>
+                <div style={{fontFamily:"Syne,sans-serif",fontSize:20,color:"#a78bfa",marginBottom:8}}>{query?"No coachings found":"No coachings yet"}</div>
+                <div style={{color:"#5a4880",fontSize:13,marginBottom:24}}>{query?"Try a different search":"Be the first to register your institute!"}</div>
+                <button onClick={() => onShowAuth("register-admin")} style={{padding:"12px 28px",border:"none",borderRadius:12,background:"linear-gradient(135deg,#6c3ff5,#8b82ff)",color:"#fff",fontFamily:"DM Sans,sans-serif",fontSize:14,fontWeight:700,cursor:"pointer",boxShadow:"0 6px 22px rgba(108,50,255,0.4)"}}>Register Your Coaching →</button>
+              </div>
+            )}
+            {!searching && (query?results:featured).map((c,idx) => (
+              <CoachingCard key={c.id} coaching={c} idx={idx} onJoin={() => { if(preSelectCoaching)preSelectCoaching(c); else onShowAuth("register"); }} />
             ))}
           </div>
         </div>
+      )}
+    </>
+  );
+}
+
+// ── Coaching card ─────────────────────────────────────────────
+function CoachingCard({ coaching: c, idx, onJoin }) {
+  const floats = ["m360Float0","m360Float1","m360Float2","m360Float3"];
+  const initials = (c.name||"?").split(" ").slice(0,2).map(w=>w[0]).join("").toUpperCase();
+  const subjects = c.subject ? c.subject.split(/[,/]/).slice(0,3) : [];
+
+  return (
+    <div className="m360-ccard" style={{
+      background:"rgba(10,8,28,0.90)",
+      border:"1px solid rgba(139,130,255,0.28)",
+      borderRadius:20,padding:"24px",
+      backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",
+      boxShadow:"0 8px 32px rgba(0,0,0,0.5),0 0 0 1px rgba(108,99,255,0.1)",
+      animation:`${floats[idx%4]} ${3.5+(idx%4)*0.7}s ease-in-out ${(idx%6)*0.35}s infinite, m360SlideUp 0.5s ease ${idx*0.055}s both`,
+      display:"flex",flexDirection:"column",gap:14,
+    }}>
+      {/* top */}
+      <div style={{display:"flex",alignItems:"flex-start",gap:14}}>
+        <div style={{width:50,height:50,borderRadius:14,flexShrink:0,background:"linear-gradient(135deg,rgba(108,50,255,0.4),rgba(59,130,246,0.35))",border:"1px solid rgba(139,130,255,0.35)",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"Syne,sans-serif",fontWeight:800,fontSize:17,color:"#d4c4ff",boxShadow:"0 0 18px rgba(108,50,255,0.25)"}}>{initials}</div>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{fontFamily:"Syne,sans-serif",fontWeight:700,fontSize:15,color:"#e8e0ff",lineHeight:1.3,marginBottom:4,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.name}</div>
+          {c.city && <div style={{fontSize:12,color:"#7a6aaa",display:"flex",alignItems:"center",gap:4}}><span>📍</span><span>{c.city}{c.state?`, ${c.state}`:""}</span></div>}
+        </div>
       </div>
 
-      {/* ── Footer ───────────────────────────────────────── */}
-      <div style={{
-        borderTop: "1px solid var(--border)", padding: "16px",
-        display: "flex", justifyContent: "space-between", alignItems: "center",
-        flexWrap: "wrap", gap: 10, color: "var(--text3)", fontSize: 12,
-        background: "var(--bg2)",
-      }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <div style={{
-            width: 24, height: 24, background: "linear-gradient(135deg, var(--accent), #8b5cf6)",
-            borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center",
-          }}>
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="#fff">
-              <path d="M12 3L1 9l11 6 9-4.91V17h2V9L12 3zm-2 11.5v3.5L12 19l2-1v-3.5L12 16l-2-1.5z"/>
-            </svg>
-          </div>
-          <span style={{ fontFamily: "Syne, sans-serif", fontWeight: 700, color: "var(--accent2)", fontSize: 14 }}>Mentoria360</span>
+      {/* subjects */}
+      {subjects.length>0 && (
+        <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+          {subjects.map((s,i) => <span key={i} style={{padding:"3px 11px",borderRadius:20,background:"rgba(139,130,255,0.15)",border:"1px solid rgba(139,130,255,0.28)",fontSize:11,color:"#b4a8ff",fontWeight:600}}>{s.trim()}</span>)}
         </div>
-        <span>© 2026 Mentoria360 · Coaching & Tutor Discovery Platform</span>
-        <div style={{ display: "flex", gap: 16 }}>
-          <button onClick={() => onShowAuth("login")} style={{ background: "none", border: "none", color: "var(--text3)", cursor: "pointer", fontSize: 12 }}>Sign In</button>
-          <button onClick={() => onShowAuth("register")} style={{ background: "none", border: "none", color: "var(--text3)", cursor: "pointer", fontSize: 12 }}>Register</button>
-        </div>
+      )}
+
+      {/* meta */}
+      <div style={{fontSize:11,color:"#5a4880",display:"flex",gap:14}}>
+        {c.yearsExp && <span>⭐ {c.yearsExp}y exp</span>}
+        {c.phone && <span style={{color:"#4a7a60"}}>✅ Available</span>}
+        {!c.yearsExp && !c.phone && <span>Open enrollment</span>}
       </div>
+
+      {/* join btn */}
+      <button onClick={onJoin} style={{width:"100%",padding:"11px",border:"1px solid rgba(139,130,255,0.42)",borderRadius:12,background:"rgba(139,130,255,0.14)",color:"#d4c4ff",fontFamily:"DM Sans,sans-serif",fontSize:13,fontWeight:700,cursor:"pointer",transition:"all 0.2s",boxShadow:"0 2px 12px rgba(108,50,255,0.12)"}} onMouseEnter={e=>{e.currentTarget.style.background="rgba(108,50,255,0.32)";e.currentTarget.style.borderColor="rgba(167,139,250,0.75)";e.currentTarget.style.color="#fff";e.currentTarget.style.boxShadow="0 5px 22px rgba(108,50,255,0.38)";}} onMouseLeave={e=>{e.currentTarget.style.background="rgba(139,130,255,0.14)";e.currentTarget.style.borderColor="rgba(139,130,255,0.42)";e.currentTarget.style.color="#d4c4ff";e.currentTarget.style.boxShadow="0 2px 12px rgba(108,50,255,0.12)";}}>
+        Join this Coaching →
+      </button>
     </div>
   );
 }
 
-// ── Coaching Card ──────────────────────────────────────────────
-function CoachingCard({ coaching, onJoin }) {
-  const [colors] = useState(() => getColor(coaching.name || "A"));
-  const studentCount = coaching.students?.length || 0;
-  const initials = getInitials(coaching.name);
-
-  // Build full address string
-  const fullAddress = [coaching.address, coaching.area, coaching.city, coaching.state, coaching.pincode]
-    .filter(Boolean).join(", ");
-  const mapsUrl = fullAddress
-    ? `https://www.google.com/maps/search/${encodeURIComponent(coaching.name + " " + fullAddress)}`
-    : coaching.city
-      ? `https://www.google.com/maps/search/${encodeURIComponent((coaching.name || "") + " " + coaching.city)}`
-      : null;
-
-  const waUrl = coaching.whatsapp || coaching.phone
-    ? `https://wa.me/${(coaching.whatsapp || coaching.phone || "").replace(/\D/g, "").replace(/^(?!91)/, "91")}`
-    : null;
-
-  const subjects = (coaching.subject || "").split(/[,\/]/).map(s => s.trim()).filter(Boolean);
-
-  return (
-    <div
-      className="card"
-      style={{
-        padding: 0, overflow: "hidden",
-        transition: "transform 0.2s, box-shadow 0.2s",
-        display: "flex", flexDirection: "column",
-      }}
-      onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-4px)"; e.currentTarget.style.boxShadow = "0 20px 60px rgba(0,0,0,0.4)"; }}
-      onMouseLeave={e => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = ""; }}
-    >
-      {/* Gradient top bar */}
-      <div style={{ height: 5, background: `linear-gradient(90deg, ${colors[0]}, ${colors[1]})` }} />
-
-      <div style={{ padding: "18px", flex: 1, display: "flex", flexDirection: "column" }}>
-        {/* Header */}
-        <div style={{ display: "flex", gap: 12, alignItems: "flex-start", marginBottom: 12 }}>
-          {/* Avatar */}
-          <div style={{
-            width: 52, height: 52, borderRadius: 12, flexShrink: 0,
-            background: `linear-gradient(135deg, ${colors[0]}, ${colors[1]})`,
-            display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: 18, fontWeight: 800, color: "#fff",
-            fontFamily: "Syne, sans-serif",
-            boxShadow: `0 6px 18px ${colors[0]}44`,
-          }}>
-            {initials || "?"}
-          </div>
-
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 2, lineHeight: 1.3 }}>
-              {coaching.name || "Unnamed Institute"}
-            </div>
-            {/* Star rating */}
-            <StarDisplay rating={coaching.avgRating} count={coaching.reviewCount} />
-          </div>
-
-          {/* Student count badge */}
-          <div style={{
-            padding: "4px 10px", borderRadius: 20, flexShrink: 0,
-            background: "rgba(99,102,241,0.12)", border: "1px solid rgba(99,102,241,0.25)",
-          }}>
-            <span style={{ fontSize: 11, fontWeight: 700, color: "var(--accent2)" }}>
-              👥 {studentCount}
-            </span>
-          </div>
-        </div>
-
-        {/* Subject tags */}
-        {subjects.length > 0 && (
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
-            {subjects.slice(0, 4).map((s, i) => (
-              <span key={i} style={{
-                fontSize: 10, padding: "3px 9px", borderRadius: 20, fontWeight: 600,
-                background: `${colors[0]}20`, color: colors[0],
-                border: `1px solid ${colors[0]}30`, letterSpacing: "0.04em",
-              }}>
-                {s.toUpperCase()}
-              </span>
-            ))}
-          </div>
-        )}
-
-        {/* Details */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 5, marginBottom: 14, flex: 1 }}>
-          {/* Full address */}
-          {fullAddress && (
-            <div style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 12, color: "var(--text2)" }}>
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" style={{ color: "var(--text3)", marginTop: 1, flexShrink: 0 }}>
-                <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
-              </svg>
-              <span style={{ lineHeight: 1.4 }}>{fullAddress}</span>
-            </div>
-          )}
-          {/* Years of experience */}
-          {coaching.yearsExp > 0 && (
-            <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "var(--text2)" }}>
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" style={{ color: "var(--text3)" }}>
-                <path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67V7z"/>
-              </svg>
-              <span><strong style={{ color: "var(--text)" }}>{coaching.yearsExp} years</strong> of experience</span>
-            </div>
-          )}
-          {/* Phone */}
-          {coaching.phone && (
-            <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "var(--text2)" }}>
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" style={{ color: "var(--text3)" }}>
-                <path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/>
-              </svg>
-              {coaching.phone}
-            </div>
-          )}
-          {studentCount > 0 && (
-            <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "var(--text2)" }}>
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" style={{ color: "var(--text3)" }}>
-                <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/>
-              </svg>
-              {studentCount} student{studentCount !== 1 ? "s" : ""} enrolled
-            </div>
-          )}
-        </div>
-
-        {/* Action buttons */}
-        <div style={{ display: "flex", gap: 8 }}>
-          <button
-            className="btn btn-primary"
-            style={{ flex: 1, fontSize: 13, fontWeight: 600 }}
-            onClick={onJoin}
-          >
-            Join This Institute →
-          </button>
-          {waUrl && (
-            <a href={waUrl} target="_blank" rel="noopener noreferrer"
-              style={{
-                width: 38, height: 38, borderRadius: 8, background: "#25d366",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                textDecoration: "none", flexShrink: 0,
-                boxShadow: "0 4px 12px rgba(37,211,102,0.3)",
-              }}
-              onClick={e => e.stopPropagation()}
-              title="Chat on WhatsApp"
-            >
-              <svg viewBox="0 0 24 24" width="17" height="17" fill="#fff">
-                <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
-              </svg>
-            </a>
-          )}
-          {mapsUrl && (
-            <a href={mapsUrl} target="_blank" rel="noopener noreferrer"
-              style={{
-                width: 38, height: 38, borderRadius: 8, background: "var(--bg3)",
-                border: "1px solid var(--border)",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                textDecoration: "none", flexShrink: 0, color: "var(--text2)",
-              }}
-              onClick={e => e.stopPropagation()}
-              title="View on Maps"
-            >
-              <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor">
-                <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
-              </svg>
-            </a>
-          )}
-        </div>
-      </div>
-    </div>
-  );
+// ── Card button ───────────────────────────────────────────────
+function CardBtn({ children, onClick, primary, mb }) {
+  const s = {width:"100%",padding:"13px",border:"none",borderRadius:12,fontFamily:"DM Sans,sans-serif",fontSize:14,fontWeight:700,cursor:"pointer",letterSpacing:"0.03em",display:"block",textAlign:"center",marginBottom:mb||0,transition:"transform 0.2s,box-shadow 0.25s,background 0.2s",...(primary?{background:"linear-gradient(135deg,#6c3ff5,#8b82ff)",color:"#fff",boxShadow:"0 6px 24px rgba(108,50,255,0.45)"}:{background:"rgba(139,130,255,0.12)",color:"#d4c4ff",border:"1px solid rgba(139,130,255,0.35)"})};
+  return <button style={s} onClick={onClick} onMouseEnter={e=>{e.currentTarget.style.transform="scale(1.025)";if(primary)e.currentTarget.style.boxShadow="0 8px 32px rgba(108,50,255,0.65)";else e.currentTarget.style.background="rgba(139,130,255,0.22)";}} onMouseLeave={e=>{e.currentTarget.style.transform="scale(1)";if(primary)e.currentTarget.style.boxShadow="0 6px 24px rgba(108,50,255,0.45)";else e.currentTarget.style.background="rgba(139,130,255,0.12)";}}>
+    {children}
+  </button>;
 }
 
-// ── Tutor Card ─────────────────────────────────────────────────
-function TutorCard({ tutor, onContact }) {
-  const [colors] = useState(() => getColor(tutor.name || "T"));
-  const subjects = (tutor.subject || "").split(/[,\/]/).map(s => s.trim()).filter(Boolean);
-
-  return (
-    <div
-      className="card"
-      style={{
-        padding: 0, overflow: "hidden",
-        transition: "transform 0.2s, box-shadow 0.2s",
-        display: "flex", flexDirection: "column",
-        borderTop: `3px solid ${colors[0]}`,
-      }}
-      onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-4px)"; e.currentTarget.style.boxShadow = "0 20px 60px rgba(0,0,0,0.4)"; }}
-      onMouseLeave={e => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = ""; }}
-    >
-      <div style={{ padding: "18px", flex: 1, display: "flex", flexDirection: "column" }}>
-        {/* Header */}
-        <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 12 }}>
-          {tutor.photoUrl ? (
-            <img
-              src={tutor.photoUrl} alt={tutor.name}
-              style={{ width: 52, height: 52, borderRadius: "50%", objectFit: "cover", flexShrink: 0, border: `2px solid ${colors[0]}` }}
-            />
-          ) : (
-            <div style={{
-              width: 52, height: 52, borderRadius: "50%", flexShrink: 0,
-              background: `linear-gradient(135deg, ${colors[0]}, ${colors[1]})`,
-              display: "flex", alignItems: "center", justifyContent: "center",
-              fontSize: 20, fontWeight: 800, color: "#fff", fontFamily: "Syne, sans-serif",
-            }}>
-              {getInitials(tutor.name) || "T"}
-            </div>
-          )}
-
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 2 }}>{tutor.name}</div>
-            <StarDisplay rating={tutor.avgRating} count={tutor.reviewCount} />
-          </div>
-
-          {tutor.yearsExp > 0 && (
-            <div style={{
-              padding: "4px 10px", borderRadius: 20, flexShrink: 0,
-              background: "rgba(139,92,246,0.12)", border: "1px solid rgba(139,92,246,0.25)",
-            }}>
-              <span style={{ fontSize: 11, fontWeight: 700, color: "#a78bfa" }}>
-                {tutor.yearsExp}yr exp
-              </span>
-            </div>
-          )}
-        </div>
-
-        {/* Bio */}
-        {tutor.bio && (
-          <p style={{ fontSize: 12, color: "var(--text2)", marginBottom: 10, lineHeight: 1.5 }}>
-            {tutor.bio.slice(0, 100)}{tutor.bio.length > 100 ? "..." : ""}
-          </p>
-        )}
-
-        {/* Subjects */}
-        {subjects.length > 0 && (
-          <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginBottom: 10 }}>
-            {subjects.slice(0, 5).map((s, i) => (
-              <span key={i} style={{
-                fontSize: 10, padding: "3px 9px", borderRadius: 20, fontWeight: 600,
-                background: `${colors[0]}20`, color: colors[0],
-                border: `1px solid ${colors[0]}30`,
-              }}>
-                {s.toUpperCase()}
-              </span>
-            ))}
-          </div>
-        )}
-
-        {/* Location */}
-        {tutor.city && (
-          <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--text2)", marginBottom: 12 }}>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" style={{ color: "var(--text3)" }}>
-              <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
-            </svg>
-            {[tutor.city, tutor.state].filter(Boolean).join(", ")}
-          </div>
-        )}
-
-        {/* Contact button */}
-        <button
-          className="btn btn-secondary"
-          style={{ width: "100%", fontSize: 13, fontWeight: 600, marginTop: "auto" }}
-          onClick={onContact}
-          title="Sign in to contact this tutor"
-        >
-          Contact Tutor →
-        </button>
-      </div>
-    </div>
-  );
+// ── Custom cursor ─────────────────────────────────────────────
+function M360Cursor() {
+  const dotRef = useRef(null), ringRef = useRef(null);
+  const cx = useRef(0), cy = useRef(0), rx = useRef(0), ry = useRef(0);
+  useEffect(() => {
+    if (window.matchMedia("(pointer:coarse)").matches) return;
+    const onM = (e) => { cx.current=e.clientX; cy.current=e.clientY; };
+    window.addEventListener("mousemove", onM);
+    let id;
+    const tk = () => { rx.current+=(cx.current-rx.current)*0.12; ry.current+=(cy.current-ry.current)*0.12; if(dotRef.current){dotRef.current.style.left=cx.current+"px";dotRef.current.style.top=cy.current+"px";}if(ringRef.current){ringRef.current.style.left=rx.current+"px";ringRef.current.style.top=ry.current+"px";}id=requestAnimationFrame(tk);};
+    id = requestAnimationFrame(tk);
+    return () => { window.removeEventListener("mousemove", onM); cancelAnimationFrame(id); };
+  }, []);
+  const b = {position:"fixed",borderRadius:"50%",pointerEvents:"none",zIndex:9999,transform:"translate(-50%,-50%)",willChange:"left,top"};
+  return <>
+    <div ref={dotRef}  style={{...b,width:8,height:8,background:"#a78bfa",boxShadow:"0 0 12px #a78bfa,0 0 28px rgba(167,139,250,0.45)"}}/>
+    <div ref={ringRef} style={{...b,width:28,height:28,border:"1.5px solid rgba(167,139,250,0.65)",boxShadow:"0 0 10px rgba(167,139,250,0.22)"}}/>
+  </>;
 }
