@@ -221,7 +221,7 @@ async function startRazorpayPayment({ fee, coaching, profile, onSuccess }) {
     key:         RAZORPAY_KEY,
     amount:      (fee.due || 0) * 100,  // paise
     currency:    "INR",
-    name:        coaching?.name || "EduPulse Fee",
+    name:        coaching?.name || "Mentorria360 Fee",
     description: `${fee.month} Fee Payment`,
     image:       "",
     prefill: {

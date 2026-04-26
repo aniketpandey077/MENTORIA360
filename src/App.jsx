@@ -15,6 +15,7 @@ import { getStudentCoachings } from "./services/firestoreService";
 import LandingPage        from "./components/public/LandingPage";
 import AuthScreen         from "./components/auth/AuthScreen";
 import AnimatedBackground from "./components/public/AnimatedBackground";
+import PageFlipIntro      from "./components/public/PageFlipIntro";
 
 // Shared
 import Sidebar        from "./components/shared/Sidebar";
@@ -383,10 +384,11 @@ export default function App() {
     <>
       <Toaster {...TOASTER_CONFIG} />
 
-      {/* Persistent animated canvas — z-index 1–4 */}
+      {/* Persistent animated canvas — z-index 1–3 */}
       <AnimatedBackground />
 
-      {/* Custom cursor rendered once globally */}
+      {/* Premium page-flip intro — z-index 500; self-removes after firing m360PortalDone */}
+      <PageFlipIntro />
 
       {/* Auth screen floats over the background */}
       {authView && (

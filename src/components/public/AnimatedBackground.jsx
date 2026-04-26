@@ -3,6 +3,9 @@
 // Persistent animated canvas background used across all public
 // pages (landing, auth, explore). Extracted so App.jsx can
 // keep it mounted while switching between views.
+//
+// The portal intro animation has been replaced by PageFlipIntro.
+// This file only handles the star-field + nebula + gravity FX.
 // ============================================================
 
 import { useEffect, useRef } from "react";
@@ -67,17 +70,16 @@ export default function AnimatedBackground() {
   const bgRef  = useRef(null);
   const conRef = useRef(null);
   const fxRef  = useRef(null);
-  const porRef = useRef(null);
   const rafRef = useRef(null);
 
   useEffect(() => {
     if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null; }
-    const bgC=bgRef.current,conC=conRef.current,fxC=fxRef.current,porC=porRef.current;
-    if (!bgC||!conC||!fxC||!porC) return;
-    const bgX=bgC.getContext("2d"),conX=conC.getContext("2d"),fxX=fxC.getContext("2d"),porX=porC.getContext("2d");
+    const bgC=bgRef.current,conC=conRef.current,fxC=fxRef.current;
+    if (!bgC||!conC||!fxC) return;
+    const bgX=bgC.getContext("2d"),conX=conC.getContext("2d"),fxX=fxC.getContext("2d");
 
     let alive=true,W=window.innerWidth,H=window.innerHeight,mx=W/2,my=H/2;
-    const setSize=()=>{W=window.innerWidth;H=window.innerHeight;[bgC,conC,fxC,porC].forEach(c=>{c.width=W;c.height=H;});};
+    const setSize=()=>{W=window.innerWidth;H=window.innerHeight;[bgC,conC,fxC].forEach(c=>{c.width=W;c.height=H;});};
     setSize();
 
     const mkObj=()=>{const d=rnd(0.3,1),sp=d*0.22;return{x:rnd(0,W),y:rnd(0,H),vx:(Math.random()-0.5)*sp,vy:(Math.random()-0.5)*sp,rot:rnd(0,PI2),rotV:(Math.random()-0.5)*0.004,sz:22+d*58,depth:d,type:OBJ_TYPES[rndI(0,5)],hue:Math.random()<0.5?"p":"b",alpha:0.35+d*0.4,dx:0,dy:0,glowPhase:rnd(0,PI2)};};
@@ -85,10 +87,8 @@ export default function AnimatedBackground() {
     const mkGrp=()=>({x:rnd(0,W),y:rnd(0,H),vx:(Math.random()-0.5)*0.5,vy:(Math.random()-0.5)*0.5,r:rnd(2,5.5),col:GRP_COLORS[rndI(0,5)],alpha:rnd(0.55,0.95)});
     const mkNebula=()=>({x:rnd(-100,W+100),y:rnd(-100,H+100),r:rnd(180,380),vx:(Math.random()-0.5)*0.06,vy:(Math.random()-0.5)*0.06,hue:Math.random()<0.5?108:220,alpha:rnd(0.04,0.09),pulse:rnd(0,PI2),pulseSpd:rnd(0.004,0.01)});
     const mkShoot=()=>({x:rnd(0,W),y:rnd(-20,H*0.4),vx:rnd(4,9),vy:rnd(1.5,4),len:rnd(80,200),life:1,decay:rnd(0.012,0.025)});
-    const mkPP=()=>{const a=rnd(0,PI2),sp=rnd(1.5,6);return{x:W/2,y:H/2,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,life:1,decay:rnd(0.008,0.022),r:rnd(1.5,4),col:["#fff","#8b82ff","#3b82f6","#c4c0ff"][rndI(0,4)],active:false};};
-
-    let bgObjs=[],dots=[],grps=[],nebulae=[],shoots=[],porParts=[],porStart=null,porDone=false,shootTimer=0;
-    const populate=()=>{bgObjs=Array.from({length:20},mkObj);dots=Array.from({length:160},mkDot);grps=Array.from({length:90},mkGrp);nebulae=Array.from({length:7},mkNebula);shoots=[];porParts=Array.from({length:200},mkPP);};
+    let bgObjs=[],dots=[],grps=[],nebulae=[],shoots=[],shootTimer=0;
+    const populate=()=>{bgObjs=Array.from({length:20},mkObj);dots=Array.from({length:160},mkDot);grps=Array.from({length:90},mkGrp);nebulae=Array.from({length:7},mkNebula);shoots=[];};
     populate();
 
     // nebulae
@@ -113,20 +113,6 @@ export default function AnimatedBackground() {
     const updGrp=()=>{grps.forEach(p=>{const dx=mx-p.x,dy=my-p.y,dist=Math.sqrt(dx*dx+dy*dy);if(dist<140&&dist>1){const f=((140-dist)/140)*0.09;p.vx+=(dx/dist)*f;p.vy+=(dy/dist)*f;}p.vx*=0.96;p.vy*=0.96;p.x+=p.vx;p.y+=p.vy;if(p.x<0){p.x=0;p.vx*=-0.7;}if(p.x>W){p.x=W;p.vx*=-0.7;}if(p.y<0){p.y=0;p.vy*=-0.7;}if(p.y>H){p.y=H;p.vy*=-0.7;}});};
     const drawGrp=()=>{fxX.clearRect(0,0,W,H);grps.forEach(p=>{fxX.save();fxX.globalAlpha=p.alpha;fxX.shadowColor=p.col;fxX.shadowBlur=12;fxX.beginPath();fxX.arc(p.x,p.y,p.r,0,PI2);fxX.fillStyle=p.col;fxX.fill();fxX.restore();});};
 
-    // portal
-    const PD=3500;
-    const drawPortal=(ts)=>{
-      if(porStart===null)porStart=ts;
-      const t=(ts-porStart)/PD;
-      porX.clearRect(0,0,W,H);
-      porX.fillStyle=`rgba(6,6,16,${Math.max(0,1-Math.pow(t,0.6))})`;porX.fillRect(0,0,W,H);
-      const cx=W/2,cy=H/2,maxR=Math.hypot(W,H)/2*1.2;
-      if(t>=0.14&&t<0.71){const st=(t-0.14)/0.57,r=st*st*180;const ig=porX.createRadialGradient(cx,cy,0,cx,cy,r);ig.addColorStop(0,`rgba(180,140,255,${0.65*st})`);ig.addColorStop(0.5,`rgba(108,50,255,${0.4*st})`);ig.addColorStop(1,"rgba(0,0,0,0)");porX.beginPath();porX.arc(cx,cy,r,0,PI2);porX.fillStyle=ig;porX.fill();porX.save();porX.shadowColor="#a78bfa";porX.shadowBlur=40*st;porX.beginPath();porX.arc(cx,cy,r,0,PI2);porX.strokeStyle=`rgba(230,210,255,${0.98*st})`;porX.lineWidth=3;porX.stroke();porX.restore();porX.save();porX.shadowColor="#3b82f6";porX.shadowBlur=20*st;porX.beginPath();porX.arc(cx,cy,r*0.85,0,PI2);porX.strokeStyle=`rgba(59,130,246,${0.5*st})`;porX.lineWidth=1;porX.stroke();porX.restore();for(let i=0;i<36;i++){const a=(i/36)*PI2+ts*0.002;porX.beginPath();porX.arc(cx+Math.cos(a)*(r+5),cy+Math.sin(a)*(r+5),i%3===0?3.5:2,0,PI2);porX.fillStyle=i%3===0?`rgba(255,255,255,${st*0.95})`:`rgba(167,139,250,${st*0.65})`;porX.fill();}if(st>0.3){for(let i=0;i<8;i++){const a0=(i/8)*PI2+ts*0.0008,a1=a0+rnd(0.05,0.3),rm=r*rnd(0.75,1.15);porX.save();porX.globalAlpha=rnd(0.2,0.6)*(st-0.3)/0.7;porX.shadowColor="#6c63ff";porX.shadowBlur=15;porX.beginPath();porX.arc(cx,cy,rm,a0,a1);porX.strokeStyle="#d4c0ff";porX.lineWidth=1.8;porX.stroke();porX.restore();}}}
-      if(t>=0.42){if(t<0.5)porParts.forEach(p=>{if(!p.active){p.active=true;p.life=1;p.x=W/2;p.y=H/2;}});porParts.forEach(p=>{if(!p.active)return;p.x+=p.vx*2.5;p.y+=p.vy*2.5;p.life-=p.decay;if(p.life<=0){p.active=false;return;}porX.save();porX.globalAlpha=p.life*0.88;porX.shadowColor=p.col;porX.shadowBlur=10;porX.beginPath();porX.arc(p.x,p.y,p.r*p.life,0,PI2);porX.fillStyle=p.col;porX.fill();porX.restore();});const st2=Math.min(1,(t-0.42)/0.14),fa=Math.sin(st2*Math.PI)*0.6;if(fa>0){porX.fillStyle=`rgba(180,140,255,${fa})`;porX.fillRect(0,0,W,H);}const r2=((t-0.42)/0.29)*maxR*1.8;if(r2>0&&t<0.71){porX.save();porX.globalAlpha=Math.max(0,1-(t-0.42)/0.29)*0.6;porX.beginPath();porX.arc(cx,cy,r2,0,PI2);porX.strokeStyle="#a78bfa";porX.lineWidth=4;porX.stroke();porX.restore();}}
-      if(t>=0.71){const st3=(t-0.71)/0.29;porX.save();porX.globalCompositeOperation="destination-out";porX.beginPath();porX.arc(cx,cy,st3*maxR*1.5,0,PI2);porX.fillStyle="rgba(0,0,0,1)";porX.fill();porX.restore();const fa3=Math.max(0,0.7-st3*2.5)*0.9;if(fa3>0){porX.fillStyle=`rgba(160,120,255,${fa3})`;porX.fillRect(0,0,W,H);}}
-      if(t>=1&&!porDone){porDone=true;porC.style.display="none";window.dispatchEvent(new CustomEvent("m360PortalDone"));}
-    };
-
     let prevTs=0;
     const loop=(ts)=>{
       if(!alive)return;
@@ -136,7 +122,6 @@ export default function AnimatedBackground() {
         drawNebulae();updObjs(ts*0.001);bgObjs.forEach(o=>drawObj(o,ts*0.001));
         drawEnergyLinks();drawAurora(ts);updateShoots(dt);
         updDots();drawCon();updGrp();drawGrp();
-        if(!porDone)drawPortal(ts);
       }catch(e){console.error("[bg]",e);}
       rafRef.current=requestAnimationFrame(loop);
     };
@@ -164,7 +149,6 @@ export default function AnimatedBackground() {
       <canvas ref={bgRef}  style={{...cvs,zIndex:1}}/>
       <canvas ref={conRef} style={{...cvs,zIndex:2}}/>
       <canvas ref={fxRef}  style={{...cvs,zIndex:3,pointerEvents:"none"}}/>
-      <canvas ref={porRef} style={{...cvs,zIndex:4,pointerEvents:"none"}}/>
     </>
   );
 }

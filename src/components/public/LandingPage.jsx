@@ -7,8 +7,9 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import { searchCoachings, getAllTutors } from "../../services/firestoreService";
 
-// Module-level flag — survives React remounts
-let _portalDone = false;
+// Module-level flag — survives React remounts within a session
+let _portalDone = typeof sessionStorage !== "undefined" &&
+  sessionStorage.getItem("m360_intro_done") === "1";
 
 export default function LandingPage({ onShowAuth, preSelectCoaching }) {
   const [view,         setView]         = useState("home");
@@ -25,7 +26,8 @@ export default function LandingPage({ onShowAuth, preSelectCoaching }) {
     if (_portalDone) { setCardVisible(true); return; }
     const onDone = () => { _portalDone = true; setCardVisible(true); };
     window.addEventListener("m360PortalDone", onDone);
-    const t = setTimeout(() => { _portalDone = true; setCardVisible(true); }, 3900);
+    // Fallback: reveal card after 2.4s in case the event never fires
+    const t = setTimeout(() => { _portalDone = true; setCardVisible(true); }, 2400);
     return () => { window.removeEventListener("m360PortalDone", onDone); clearTimeout(t); };
   }, []);
 

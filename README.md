@@ -1,4 +1,4 @@
-# EduPulse — Coaching Institute Management SaaS
+# Mentorria360 — Coaching Institute Management SaaS
 
 A multi-tenant SaaS platform where coaching institutes manage students, fees, classes, and workshops. Built with React + Firebase.
 
@@ -7,7 +7,7 @@ A multi-tenant SaaS platform where coaching institutes manage students, fees, cl
 ## Folder Structure
 
 ```
-edupulse/
+Mentorria360/
 ├── public/
 │   └── index.html
 ├── src/
@@ -58,7 +58,7 @@ edupulse/
 ### 1.1 Create Firebase Project
 
 1. Go to [console.firebase.google.com](https://console.firebase.google.com)
-2. Click **Add project** → name it `edupulse`
+2. Click **Add project** → name it `Mentorria360`
 3. Disable Google Analytics (optional) → **Create project**
 
 ### 1.2 Enable Authentication
@@ -76,7 +76,7 @@ edupulse/
 ### 1.4 Get Your Config
 
 1. Firebase Console → **Project Settings** (gear icon) → **Your apps**
-2. Click **Web** icon (`</>`) → Register app as `edupulse-web`
+2. Click **Web** icon (`</>`) → Register app as `Mentorria360-web`
 3. Copy the `firebaseConfig` object — you'll need it in `.env`
 
 ---
@@ -85,7 +85,7 @@ edupulse/
 
 ```bash
 # Clone / download the project
-cd edupulse
+cd Mentorria360
 
 # Install dependencies
 npm install
@@ -97,9 +97,9 @@ cp .env.example .env
 Edit `.env`:
 ```
 REACT_APP_FIREBASE_API_KEY=AIza...
-REACT_APP_FIREBASE_AUTH_DOMAIN=edupulse-xxx.firebaseapp.com
-REACT_APP_FIREBASE_PROJECT_ID=edupulse-xxx
-REACT_APP_FIREBASE_STORAGE_BUCKET=edupulse-xxx.appspot.com
+REACT_APP_FIREBASE_AUTH_DOMAIN=Mentorria360-xxx.firebaseapp.com
+REACT_APP_FIREBASE_PROJECT_ID=Mentorria360-xxx
+REACT_APP_FIREBASE_STORAGE_BUCKET=Mentorria360-xxx.appspot.com
 REACT_APP_FIREBASE_MESSAGING_SENDER_ID=123456789
 REACT_APP_FIREBASE_APP_ID=1:123456789:web:abc123
 ```
@@ -117,7 +117,7 @@ Open [http://localhost:3000](http://localhost:3000)
 
 The super admin is the platform owner. Create them manually in Firestore:
 
-1. Register via the app UI with any email (e.g., `superadmin@edupulse.com`)
+1. Register via the app UI with any email (e.g., `superadmin@Mentorria360.com`)
 2. Go to Firebase Console → **Firestore** → `users` collection
 3. Find the document with that email
 4. Edit the `role` field from `"student"` to `"superadmin"`
@@ -272,3 +272,4 @@ coachings/
 **Add payment gateway** — integrate Razorpay or PayU by creating a Cloud Function that generates a payment order and updating the fee record on success.
 
 **Add real-time updates** — replace `getDocs` calls with `onSnapshot` listeners for live dashboard updates without refreshing.
+
