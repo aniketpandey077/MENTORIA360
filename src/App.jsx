@@ -340,15 +340,58 @@ export default function App() {
 
   if (loading) return <LoadingScreen />;
 
+  const KNOWN_ROLES = ["superadmin", "admin", "tutor", "student"];
+  const roleNormalized = profile?.role?.toLowerCase().trim();
+
   // User is fully authenticated → show their dashboard
   if (user && profile) {
+    // Unknown / unrecognised role — show a diagnostic screen
+    if (!KNOWN_ROLES.includes(roleNormalized)) {
+      return (
+        <>
+          <Toaster {...TOASTER_CONFIG} />
+          <div style={{
+            minHeight: "100vh", display: "flex", flexDirection: "column",
+            alignItems: "center", justifyContent: "center", gap: 20, padding: 32,
+            fontFamily: "DM Sans, sans-serif", background: "#0f0f13", color: "#f0f0f8",
+          }}>
+            <div style={{ fontSize: 52 }}>🔐</div>
+            <h2 style={{ fontFamily: "Syne, sans-serif", fontSize: 22 }}>Account Role Not Recognised</h2>
+            <p style={{ color: "#9898b0", fontSize: 14, textAlign: "center", maxWidth: 420, lineHeight: 1.6 }}>
+              Your account role is <code style={{ background:"rgba(239,68,68,.12)", color:"#f87171", padding:"2px 8px", borderRadius:6 }}>
+                "{profile.role || "(empty)"}"
+              </code>.
+              <br /><br />
+              Please set your <strong>role</strong> field in Firestore to exactly one of:<br />
+              <code style={{ color:"#a78bfa" }}>superadmin</code> · <code style={{ color:"#a78bfa" }}>admin</code> · <code style={{ color:"#a78bfa" }}>student</code> · <code style={{ color:"#a78bfa" }}>tutor</code>
+              <br /><br />
+              <span style={{ fontSize:12, color:"#5a5a72" }}>
+                Firebase Console → Firestore → users → {user.uid} → role field
+              </span>
+            </p>
+            <button
+              onClick={logout}
+              style={{
+                padding: "12px 28px", border: "none", borderRadius: 12,
+                background: "linear-gradient(135deg,#6c3ff5,#8b82ff)",
+                color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer",
+                boxShadow: "0 6px 22px rgba(108,50,255,.4)",
+              }}
+            >
+              ← Sign Out
+            </button>
+          </div>
+        </>
+      );
+    }
+
     return (
       <>
         <Toaster {...TOASTER_CONFIG} />
-        {profile.role === "superadmin" && <SuperAdminLayout profile={profile} logout={logout} />}
-        {profile.role === "admin"      && <AdminLayout      profile={profile} logout={logout} />}
-        {profile.role === "tutor"      && <TutorLayout      profile={profile} logout={logout} />}
-        {profile.role === "student"    && <StudentLayout    profile={profile} logout={logout} />}
+        {roleNormalized === "superadmin" && <SuperAdminLayout profile={profile} logout={logout} />}
+        {roleNormalized === "admin"      && <AdminLayout      profile={profile} logout={logout} />}
+        {roleNormalized === "tutor"      && <TutorLayout      profile={profile} logout={logout} />}
+        {roleNormalized === "student"    && <StudentLayout    profile={profile} logout={logout} />}
       </>
     );
   }

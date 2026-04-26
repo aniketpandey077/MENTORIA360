@@ -5,7 +5,10 @@
 // ============================================================
 
 import React, { useEffect, useState } from "react";
-import { getAllCoachings, getAllUsers, getAllTutors } from "../../services/firestoreService";
+import {
+  getAllCoachings, getAllUsers, getAllTutors,
+  updateExploreVisibility,
+} from "../../services/firestoreService";
 import { formatDate } from "../../utils/helpers";
 import toast from "react-hot-toast";
 
@@ -27,25 +30,192 @@ function StatCard({ label, value, icon, color }) {
   );
 }
 
+// ── Coaching Detail Panel ─────────────────────────────────
+function CoachingDetailPanel({ coaching, admin, onClose, onVisibilityChange }) {
+  const [toggling, setToggling] = useState(false);
+  const visible = coaching.showInExplore !== false;
+
+  const handleToggle = async () => {
+    setToggling(true);
+    try {
+      await updateExploreVisibility(coaching.id, !visible);
+      onVisibilityChange(coaching.id, !visible);
+      toast.success(!visible ? "Coaching is now visible on Explore" : "Coaching hidden from Explore");
+    } catch {
+      toast.error("Failed to update visibility.");
+    } finally {
+      setToggling(false);
+    }
+  };
+
+  const mapsUrl = coaching.city
+    ? `https://www.google.com/maps/search/${encodeURIComponent(coaching.name + " " + coaching.city)}`
+    : null;
+
+  const createdDate = coaching.createdAt?.seconds
+    ? new Date(coaching.createdAt.seconds * 1000).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
+    : "—";
+
+  return (
+    <div style={{
+      position: "fixed", inset: 0, zIndex: 200,
+      background: "rgba(0,0,0,.65)", backdropFilter: "blur(8px)",
+      display: "flex", alignItems: "center", justifyContent: "center",
+      padding: 24,
+    }} onClick={onClose}>
+      <div
+        className="card"
+        style={{
+          width: "100%", maxWidth: 560,
+          maxHeight: "85vh", overflowY: "auto",
+          borderRadius: 20,
+          border: "1px solid var(--border)",
+          background: "var(--bg2)",
+          boxShadow: "0 32px 80px rgba(0,0,0,.6)",
+        }}
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24 }}>
+          <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
+            <div style={{
+              width: 52, height: 52, borderRadius: 14,
+              background: "var(--accent)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 22, fontWeight: 800, color: "#fff", flexShrink: 0,
+            }}>
+              {coaching.name?.[0]?.toUpperCase() || "?"}
+            </div>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: 18 }}>{coaching.name}</div>
+              {mapsUrl
+                ? <a href={mapsUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: "var(--accent2)", textDecoration: "none" }}>📍 {coaching.city} ↗</a>
+                : <span style={{ fontSize: 12, color: "var(--text3)" }}>📍 {coaching.city || "—"}</span>
+              }
+            </div>
+          </div>
+          <button onClick={onClose} style={{ background: "none", border: "none", color: "var(--text3)", fontSize: 20, cursor: "pointer", lineHeight: 1 }}>✕</button>
+        </div>
+
+        {/* Key Stats */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12, marginBottom: 20 }}>
+          {[
+            { label: "Students", value: coaching.students?.length || 0, color: "var(--green)", icon: "🎓" },
+            { label: "Subject", value: coaching.subject || "—", color: "var(--text)", icon: "📚" },
+            { label: "Registered", value: createdDate, color: "var(--text2)", icon: "📅" },
+          ].map(s => (
+            <div key={s.label} className="stat-card" style={{ padding: "14px 12px", textAlign: "center" }}>
+              <div style={{ fontSize: 20, marginBottom: 4 }}>{s.icon}</div>
+              <div style={{ fontSize: s.label === "Registered" ? 11 : 22, fontWeight: 700, color: s.color, marginBottom: 2 }}>{s.value}</div>
+              <div style={{ fontSize: 10, color: "var(--text3)", textTransform: "uppercase", letterSpacing: ".06em" }}>{s.label}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Admin info */}
+        <div className="card" style={{ background: "var(--bg3)", marginBottom: 16, padding: "14px 16px" }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text3)", textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 10 }}>Admin Info</div>
+          {admin ? (
+            <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+              <div style={{
+                width: 36, height: 36, borderRadius: "50%",
+                background: "var(--accent)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: 13, fontWeight: 700, color: "#fff",
+              }}>
+                {admin.name?.[0]?.toUpperCase() || "A"}
+              </div>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 600 }}>{admin.name}</div>
+                <div style={{ fontSize: 11, color: "var(--text3)" }}>{admin.email || admin.phone || "—"}</div>
+              </div>
+            </div>
+          ) : (
+            <div style={{ fontSize: 12, color: "var(--text3)" }}>Admin information not found</div>
+          )}
+          {coaching.phone && (
+            <div style={{ marginTop: 8, fontSize: 12, color: "var(--text2)" }}>📞 {coaching.phone}</div>
+          )}
+        </div>
+
+        {/* Explore Visibility Control */}
+        <div className="card" style={{
+          background: visible
+            ? "linear-gradient(135deg, rgba(16,185,129,.08), rgba(16,185,129,.03))"
+            : "linear-gradient(135deg, rgba(239,68,68,.08), rgba(239,68,68,.03))",
+          border: `1px solid ${visible ? "rgba(16,185,129,.22)" : "rgba(239,68,68,.22)"}`,
+          padding: "16px 18px",
+          marginBottom: 0,
+        }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)", marginBottom: 4 }}>
+                🔍 Explore Visibility
+              </div>
+              <div style={{ fontSize: 12, color: visible ? "var(--green)" : "var(--red)", fontWeight: 600 }}>
+                {visible ? "🟢 Visible to students" : "🔴 Hidden from search"}
+              </div>
+              <div style={{ fontSize: 11, color: "var(--text3)", marginTop: 3 }}>
+                {visible ? "Students can discover this institute." : "Not appearing in Explore results."}
+              </div>
+            </div>
+            <button
+              onClick={handleToggle}
+              disabled={toggling}
+              style={{
+                width: 52, height: 28,
+                borderRadius: 14,
+                border: "none",
+                background: visible ? "var(--green)" : "var(--bg3)",
+                position: "relative",
+                cursor: toggling ? "not-allowed" : "pointer",
+                transition: "background .3s",
+                flexShrink: 0,
+                boxShadow: visible ? "0 0 12px rgba(16,185,129,.4)" : "none",
+              }}
+            >
+              <div style={{
+                position: "absolute",
+                top: 3, left: visible ? "calc(100% - 25px)" : 3,
+                width: 22, height: 22,
+                borderRadius: "50%",
+                background: "#fff",
+                transition: "left .25s cubic-bezier(.16,1,.3,1)",
+                boxShadow: "0 1px 4px rgba(0,0,0,.3)",
+              }} />
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Main Super Admin Dashboard ────────────────────────────────
 export default function SuperAdminDashboard({ active }) {
   const [coachings, setCoachings] = useState([]);
   const [users,     setUsers]     = useState([]);
   const [tutors,    setTutors]    = useState([]);
   const [loading,   setLoading]   = useState(true);
   const [search,    setSearch]    = useState("");
+  const [selected,  setSelected]  = useState(null); // coaching detail panel
 
   useEffect(() => {
-    // Load coachings + users first (critical), tutors gracefully
     Promise.all([getAllCoachings(), getAllUsers()])
       .then(([c, u]) => { setCoachings(c); setUsers(u); })
       .catch(() => toast.error("Failed to load data — check Firestore rules."))
       .finally(() => setLoading(false));
 
-    // Tutors load independently — failure here won’t blank the page
     getAllTutors()
       .then(t => setTutors(t))
-      .catch(() => {}); // tutors collection may not exist yet
+      .catch(() => {});
   }, []);
+
+  // Update showInExplore locally so UI refreshes without re-fetch
+  const handleVisibilityChange = (coachingId, visible) => {
+    setCoachings(prev => prev.map(c => c.id === coachingId ? { ...c, showInExplore: visible } : c));
+    if (selected?.id === coachingId) setSelected(s => ({ ...s, showInExplore: visible }));
+  };
 
   if (loading) return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "100px 0", gap: 16 }}>
@@ -74,13 +244,19 @@ export default function SuperAdminDashboard({ active }) {
 
         {/* Stats */}
         <div className="stats-grid" style={{ marginBottom: 28 }}>
-          <StatCard label="Total Institutes"  value={coachings.length}          icon="🏫" color="var(--accent2)" />
-          <StatCard label="Total Admins"      value={admins.length}             icon="👨‍💼" color="var(--accent)" />
-          <StatCard label="Total Students"    value={students.length}           icon="👨‍🎓" color="var(--green)" />
-          <StatCard label="Enrolled Students" value={totalStudentsEnrolled}     icon="✅"  color="var(--blue)"  />
-          <StatCard label="Pending Approvals" value={pending.length}            icon="⏳"  color="var(--amber)" />
-          <StatCard label="Platform Users"    value={users.length}              icon="👥"  color="var(--text)"  />
-          <StatCard label="Tutors"            value={tutors.length}             icon="👨‍🏫" color="#a78bfa" />
+          <StatCard label="Total Institutes"  value={coachings.length}      icon="🏫" color="var(--accent2)" />
+          <StatCard label="Total Admins"      value={admins.length}         icon="👨‍💼" color="var(--accent)" />
+          <StatCard label="Total Students"    value={students.length}       icon="👨‍🎓" color="var(--green)" />
+          <StatCard label="Enrolled Students" value={totalStudentsEnrolled} icon="✅"  color="var(--blue)"  />
+          <StatCard label="Pending Approvals" value={pending.length}        icon="⏳"  color="var(--amber)" />
+          <StatCard label="Platform Users"    value={users.length}          icon="👥"  color="var(--text)"  />
+          <StatCard label="Tutors"            value={tutors.length}         icon="👨‍🏫" color="#a78bfa" />
+          <StatCard
+            label="Visible on Explore"
+            value={coachings.filter(c => c.showInExplore !== false).length}
+            icon="🔍"
+            color="var(--green)"
+          />
         </div>
 
         {/* Quick Insights */}
@@ -114,9 +290,7 @@ export default function SuperAdminDashboard({ active }) {
             <h3 style={{ fontSize: 14, marginBottom: 16, color: "var(--text2)" }}>📍 City Distribution</h3>
             {(() => {
               const cityMap = {};
-              coachings.forEach(c => {
-                if (c.city) cityMap[c.city] = (cityMap[c.city] || 0) + 1;
-              });
+              coachings.forEach(c => { if (c.city) cityMap[c.city] = (cityMap[c.city] || 0) + 1; });
               const sorted = Object.entries(cityMap).sort((a, b) => b[1] - a[1]).slice(0, 6);
               const max = sorted[0]?.[1] || 1;
               return sorted.map(([city, count]) => (
@@ -153,24 +327,37 @@ export default function SuperAdminDashboard({ active }) {
                 <th>City</th>
                 <th>Focus</th>
                 <th>Students</th>
-                <th>Status</th>
+                <th>Explore</th>
               </tr>
             </thead>
             <tbody>
               {recentCoachings.map(c => (
-                <tr key={c.id}>
+                <tr key={c.id} style={{ cursor: "pointer" }} onClick={() => setSelected(c)}>
                   <td style={{ fontWeight: 600 }}>{c.name}</td>
                   <td style={{ color: "var(--text2)" }}>{c.city || "—"}</td>
                   <td>
                     {c.subject ? <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 20, background: "var(--accent-bg)", color: "var(--accent)" }}>{c.subject}</span> : "—"}
                   </td>
                   <td style={{ fontWeight: 600, color: "var(--green)" }}>{(c.students || []).length}</td>
-                  <td><span className="badge badge-approved">Active</span></td>
+                  <td>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: c.showInExplore !== false ? "var(--green)" : "var(--red)" }}>
+                      {c.showInExplore !== false ? "🟢 Visible" : "🔴 Hidden"}
+                    </span>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+
+        {selected && (
+          <CoachingDetailPanel
+            coaching={selected}
+            admin={users.find(u => u.uid === selected.adminId || u.id === selected.adminId)}
+            onClose={() => setSelected(null)}
+            onVisibilityChange={handleVisibilityChange}
+          />
+        )}
       </div>
     );
   }
@@ -186,10 +373,9 @@ export default function SuperAdminDashboard({ active }) {
       <div className="fade-in">
         <div className="page-header">
           <h2>🏫 All Institutes</h2>
-          <p>{coachings.length} registered coaching institutes on the platform</p>
+          <p>{coachings.length} registered coaching institutes · {coachings.filter(c => c.showInExplore !== false).length} visible on Explore</p>
         </div>
 
-        {/* Search */}
         <div className="search-wrap" style={{ marginBottom: 20 }}>
           <span className="search-icon">🔍</span>
           <input placeholder="Search by name, city, subject..." value={search} onChange={e => setSearch(e.target.value)} />
@@ -203,11 +389,18 @@ export default function SuperAdminDashboard({ active }) {
             const admin = users.find(u => u.uid === c.adminId || u.id === c.adminId);
             const mapsUrl = c.city ? `https://www.google.com/maps/search/${encodeURIComponent(c.name + " " + c.city)}` : null;
             const studentCount = c.students?.length || 0;
+            const visible = c.showInExplore !== false;
 
             return (
-              <div key={c.id} className="card">
+              <div
+                key={c.id}
+                className="card"
+                style={{ cursor: "pointer", transition: "border-color .2s", borderColor: "var(--border)" }}
+                onMouseEnter={e => e.currentTarget.style.borderColor = "var(--accent)"}
+                onMouseLeave={e => e.currentTarget.style.borderColor = "var(--border)"}
+                onClick={() => setSelected(c)}
+              >
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16 }}>
-                  {/* Left */}
                   <div style={{ flex: 1 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
                       <div style={{
@@ -220,7 +413,7 @@ export default function SuperAdminDashboard({ active }) {
                       <div>
                         <div style={{ fontWeight: 700, fontSize: 15 }}>{c.name}</div>
                         {mapsUrl ? (
-                          <a href={mapsUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: "var(--accent2)", textDecoration: "none" }}>
+                          <a href={mapsUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ fontSize: 12, color: "var(--accent2)", textDecoration: "none" }}>
                             📍 {c.city || "—"} ↗
                           </a>
                         ) : (
@@ -228,20 +421,22 @@ export default function SuperAdminDashboard({ active }) {
                         )}
                       </div>
                     </div>
-
                     <div style={{ display: "flex", gap: 16, flexWrap: "wrap", fontSize: 12, color: "var(--text2)" }}>
                       {c.subject && <span>📚 {c.subject}</span>}
                       {c.phone   && <span>📞 {c.phone}</span>}
-                      {admin     && <span>👨‍💼 Admin: {admin.name}</span>}
+                      {admin     && <span>👨‍💼 {admin.name}</span>}
                     </div>
                   </div>
 
-                  {/* Right */}
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
-                    <span className="badge badge-approved">Active</span>
-                    <div style={{ fontSize: 20, fontWeight: 800, color: "var(--green)", textAlign: "right" }}>
-                      {studentCount}
-                    </div>
+                    <span style={{
+                      fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 20,
+                      background: visible ? "rgba(16,185,129,.12)" : "rgba(239,68,68,.12)",
+                      color: visible ? "var(--green)" : "var(--red)",
+                    }}>
+                      {visible ? "🟢 Visible" : "🔴 Hidden"}
+                    </span>
+                    <div style={{ fontSize: 20, fontWeight: 800, color: "var(--green)", textAlign: "right" }}>{studentCount}</div>
                     <div style={{ fontSize: 11, color: "var(--text3)" }}>students</div>
                   </div>
                 </div>
@@ -249,11 +444,20 @@ export default function SuperAdminDashboard({ active }) {
             );
           })}
         </div>
+
+        {selected && (
+          <CoachingDetailPanel
+            coaching={selected}
+            admin={users.find(u => u.uid === selected.adminId || u.id === selected.adminId)}
+            onClose={() => setSelected(null)}
+            onVisibilityChange={handleVisibilityChange}
+          />
+        )}
       </div>
     );
   }
 
-  // ── Tutors section ───────────────────────────────────────────────
+  // ── Tutors section ──────────────────────────────────────────
   if (active === "tutors") {
     const filteredTutors = tutors.filter(t => {
       const q = search.toLowerCase();
@@ -309,7 +513,7 @@ export default function SuperAdminDashboard({ active }) {
     );
   }
 
-  // ── Reviews section (platform-wide) ─────────────────────────────────
+  // ── Reviews ─────────────────────────────────────────────────
   if (active === "reviews") {
     return (
       <div className="fade-in">
@@ -348,13 +552,11 @@ export default function SuperAdminDashboard({ active }) {
           <p>{users.length} registered platform users</p>
         </div>
 
-        {/* Search */}
         <div className="search-wrap" style={{ marginBottom: 20 }}>
           <span className="search-icon">🔍</span>
           <input placeholder="Search by name, email, or role..." value={search} onChange={e => setSearch(e.target.value)} />
         </div>
 
-        {/* Role summary */}
         <div className="stats-grid" style={{ marginBottom: 20 }}>
           {Object.entries(roleGroups).map(([role, list]) => (
             <div key={role} className="stat-card" style={{ textAlign: "center" }}>
@@ -400,9 +602,7 @@ export default function SuperAdminDashboard({ active }) {
                         <span style={{ fontWeight: 500, fontSize: 13 }}>{u.name || "—"}</span>
                       </div>
                     </td>
-                    <td style={{ color: "var(--text2)", fontSize: 12 }}>
-                      {u.email || u.phone || "—"}
-                    </td>
+                    <td style={{ color: "var(--text2)", fontSize: 12 }}>{u.email || u.phone || "—"}</td>
                     <td>
                       <span style={{
                         fontSize: 10, padding: "3px 10px", borderRadius: 20, fontWeight: 700,
@@ -413,9 +613,7 @@ export default function SuperAdminDashboard({ active }) {
                         {u.role}
                       </span>
                     </td>
-                    <td>
-                      <span className={`badge badge-${statusBadge}`}>{u.status || "active"}</span>
-                    </td>
+                    <td><span className={`badge badge-${statusBadge}`}>{u.status || "active"}</span></td>
                     <td style={{ color: "var(--text2)", fontSize: 12 }}>
                       {coaching?.name || (u.coachingId ? "Unknown" : "—")}
                     </td>
@@ -429,7 +627,6 @@ export default function SuperAdminDashboard({ active }) {
     );
   }
 
-  // ── Fallback (should never happen) ─────────────────────────
   return (
     <div className="fade-in">
       <div className="page-header">

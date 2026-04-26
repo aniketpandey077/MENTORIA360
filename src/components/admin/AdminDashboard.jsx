@@ -1,7 +1,8 @@
 // src/components/admin/AdminDashboard.jsx
 // ============================================================
 // Main dashboard for coaching admins. Shows stats, pending
-// requests, recent transactions, and fee status overview.
+// requests, recent transactions, fee status overview, and
+// Explore visibility toggle.
 // ============================================================
 
 import React, { useEffect, useState } from "react";
@@ -9,11 +10,99 @@ import { useAuth } from "../../contexts/AuthContext";
 import {
   getCoaching, getJoinRequests, getCoachingFees,
   getTransactions, approveJoinRequest, rejectJoinRequest,
-  getStudentProfiles,
+  updateExploreVisibility,
 } from "../../services/firestoreService";
 import { formatCurrency, formatDate, getInitials } from "../../utils/helpers";
 import toast from "react-hot-toast";
 
+// ── Explore Visibility Toggle Card ───────────────────────────
+function ExploreToggleCard({ coachingId, initialValue }) {
+  const [visible,  setVisible]  = useState(initialValue !== false);
+  const [saving,   setSaving]   = useState(false);
+
+  const toggle = async () => {
+    const next = !visible;
+    setVisible(next);   // optimistic
+    setSaving(true);
+    try {
+      await updateExploreVisibility(coachingId, next);
+      toast.success(next ? "Institute is now visible on Explore 🟢" : "Institute hidden from Explore 🔴");
+    } catch {
+      setVisible(!next); // rollback
+      toast.error("Failed to update visibility.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div
+      className="stat-card"
+      style={{
+        display: "flex", flexDirection: "column", gap: 14,
+        background: visible
+          ? "linear-gradient(135deg, rgba(16,185,129,.08), rgba(16,185,129,.03))"
+          : "linear-gradient(135deg, rgba(239,68,68,.08), rgba(239,68,68,.03))",
+        border: `1px solid ${visible ? "rgba(16,185,129,.25)" : "rgba(239,68,68,.22)"}`,
+      }}
+    >
+      {/* Header */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+        <div>
+          <div style={{ fontSize: 22, marginBottom: 4 }}>🔍</div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text2)", textTransform: "uppercase", letterSpacing: ".06em" }}>
+            Explore Visibility
+          </div>
+        </div>
+        {/* Toggle switch */}
+        <button
+          onClick={toggle}
+          disabled={saving}
+          title={visible ? "Click to hide from Explore" : "Click to show on Explore"}
+          style={{
+            width: 52, height: 28,
+            borderRadius: 14,
+            border: "none",
+            background: visible ? "var(--green)" : "var(--bg3)",
+            position: "relative",
+            cursor: saving ? "not-allowed" : "pointer",
+            transition: "background .3s",
+            flexShrink: 0,
+            boxShadow: visible ? "0 0 12px rgba(16,185,129,.4)" : "none",
+          }}
+        >
+          <div style={{
+            position: "absolute",
+            top: 3, left: visible ? "calc(100% - 25px)" : 3,
+            width: 22, height: 22,
+            borderRadius: "50%",
+            background: "#fff",
+            transition: "left .25s cubic-bezier(.16,1,.3,1)",
+            boxShadow: "0 1px 4px rgba(0,0,0,.3)",
+          }} />
+        </button>
+      </div>
+
+      {/* Status text */}
+      <div>
+        <div style={{
+          fontSize: 13, fontWeight: 700,
+          color: visible ? "var(--green)" : "var(--red)",
+          marginBottom: 4,
+        }}>
+          {saving ? "Saving…" : visible ? "🟢 Visible to students" : "🔴 Hidden from search"}
+        </div>
+        <div style={{ fontSize: 11, color: "var(--text3)", lineHeight: 1.5 }}>
+          {visible
+            ? "Students can find and join your institute from the Explore page."
+            : "Your institute won't appear in student searches. Existing students are unaffected."}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Main Admin Dashboard ──────────────────────────────────────
 export default function AdminDashboard({ setActive }) {
   const { profile } = useAuth();
   const [coaching,      setCoaching]      = useState(null);
@@ -76,8 +165,8 @@ export default function AdminDashboard({ setActive }) {
         <p>{coaching?.city} · {coaching?.subject}</p>
       </div>
 
-      {/* Stats */}
-      <div className="stats-grid">
+      {/* Stats — 4 existing + Explore toggle */}
+      <div className="stats-grid" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))" }}>
         <div className="stat-card">
           <span className="stat-label">Total Students</span>
           <span className="stat-value" style={{ color: "var(--accent2)" }}>{studentCount}</span>
@@ -96,6 +185,11 @@ export default function AdminDashboard({ setActive }) {
             {requests.length}
           </span>
         </div>
+        {/* ── Explore Visibility Toggle ── */}
+        <ExploreToggleCard
+          coachingId={profile.coachingId}
+          initialValue={coaching?.showInExplore}
+        />
       </div>
 
       {/* Pending join requests */}

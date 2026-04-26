@@ -97,15 +97,30 @@ export function invalidateCoachingsCache() {
 }
 
 /**
+ * Toggle whether a coaching appears in the public Explore search.
+ * showInExplore = true  → visible to students searching
+ * showInExplore = false → hidden from Explore (still runs normally)
+ */
+export async function updateExploreVisibility(coachingId, visible) {
+  await updateDoc(doc(db, "coachings", coachingId), { showInExplore: visible });
+  invalidateCoachingsCache(); // clear cache so change is immediate
+}
+
+/**
  * Search coachings by name (case-insensitive via nameLower field).
  */
 export async function searchCoachings(term) {
   const all = await getAllCoachings();
   const t = term.toLowerCase();
+  // Only return coachings that have opted in to Explore (showInExplore !== false)
   return all.filter(c =>
-    c.name?.toLowerCase().includes(t) ||
-    c.city?.toLowerCase().includes(t) ||
-    c.subject?.toLowerCase().includes(t)
+    c.showInExplore !== false &&
+    (
+      !t ||
+      c.name?.toLowerCase().includes(t) ||
+      c.city?.toLowerCase().includes(t) ||
+      c.subject?.toLowerCase().includes(t)
+    )
   );
 }
 
