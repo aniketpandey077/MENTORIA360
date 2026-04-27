@@ -616,15 +616,16 @@ const CSS = `
 
 // ── Main Component ─────────────────────────────────────────────
 export default function LandingPage({ onShowAuth, preSelectCoaching }) {
-  // Explore state (preserved from original)
-  const [view,         setView]         = useState("home");
-  const [query,        setQuery]        = useState("");
-  const [results,      setResults]      = useState([]);
-  const [featured,     setFeatured]     = useState([]);
-  const [tutors,       setTutors]       = useState([]);
-  const [searching,    setSearching]    = useState(false);
-  const [exploreReady, setExploreReady] = useState(false);
-  const [exploreMode,  setExploreMode]  = useState("coaching");
+  // Explore state
+  const [view,           setView]           = useState("home");
+  const [query,          setQuery]          = useState("");
+  const [results,        setResults]        = useState([]);
+  const [featured,       setFeatured]       = useState([]);
+  const [tutors,         setTutors]         = useState([]);
+  const [searching,      setSearching]      = useState(false);
+  const [exploreReady,   setExploreReady]   = useState(false);
+  const [exploreMode,    setExploreMode]    = useState("coaching");
+  const [featuredLoading,setFeaturedLoading]= useState(false); // true while Firestore is fetching
 
   // Premium landing refs
   const canvasRef      = useRef(null);
@@ -632,10 +633,10 @@ export default function LandingPage({ onShowAuth, preSelectCoaching }) {
   const cursorDotRef   = useRef(null);
   const rafRef         = useRef(null);
   const threeCleanup   = useRef(null);
-  const exploreLoaded  = useRef(false); // track if Firestore data already fetched
-  const [scriptsReady, setScriptsReady] = useState(true); // bundled — always ready
+  const exploreLoaded  = useRef(false);
+  const [scriptsReady, setScriptsReady] = useState(true);
   const [countersRun,  setCountersRun]  = useState(false);
-  const [cardVis, setCardVis] = useState(false);
+  const [cardVis,      setCardVis]      = useState(false);
 
   // ── Intro unlock ────────────────────────────────────────────
   useEffect(() => {
@@ -646,14 +647,21 @@ export default function LandingPage({ onShowAuth, preSelectCoaching }) {
     return () => { window.removeEventListener("m360PortalDone", onDone); clearTimeout(t); };
   }, []);
 
-  // ── Lazy Explore data — only fetched when user opens Explore ──
-  // Not on page load: saves ~200-400ms render time + Firestore reads
-  // for visitors who never click Explore.
+  // ── Lazy Explore data ─────────────────────────────────────────
+  // Fetches only when user opens Explore (not on every page load).
+  // Shows a loading spinner while fetching so users never see a
+  // false "No coachings yet" empty state.
   const loadExploreData = useCallback(() => {
-    if (exploreLoaded.current) return; // already fetched this session
+    if (exploreLoaded.current) return;
     exploreLoaded.current = true;
-    searchCoachings("").then(r => setFeatured(r.slice(0, 12))).catch(() => {});
-    getAllTutors().then(r => setTutors(r)).catch(() => {});
+    setFeaturedLoading(true);
+    Promise.all([
+      searchCoachings("").catch(() => []),
+      getAllTutors().catch(() => []),
+    ]).then(([coachings, allTutors]) => {
+      setFeatured(coachings.slice(0, 12));
+      setTutors(allTutors);
+    }).finally(() => setFeaturedLoading(false));
   }, []);
 
   // ── Cleanup on unmount / view change ────────────────────────
@@ -925,8 +933,16 @@ export default function LandingPage({ onShowAuth, preSelectCoaching }) {
           <div className="lp-explore-grid">
             {exploreMode === "coaching" ? (
               <>
+                {/* Loading spinner while Firestore fetches */}
+                {featuredLoading && !searching && (
+                  <div style={{ gridColumn: "1/-1", textAlign: "center", padding: 60 }}>
+                    <div style={{ width: 44, height: 44, border: "3px solid rgba(139,130,255,0.2)", borderTop: "3px solid #a78bfa", borderRadius: "50%", animation: "spin 0.8s linear infinite", margin: "0 auto 16px" }} />
+                    <div style={{ color: "#7060a8", fontSize: 14 }}>Loading coachings...</div>
+                  </div>
+                )}
                 {searching && <div style={{ gridColumn: "1/-1", textAlign: "center", padding: 60, color: "#8878cc" }}>✨ Searching...</div>}
-                {!searching && (query ? results : featured).length === 0 && (
+                {/* Only show empty state when we're sure loading is done */}
+                {!searching && !featuredLoading && (query ? results : featured).length === 0 && (
                   <div style={{ gridColumn: "1/-1", textAlign: "center", padding: 60 }}>
                     <div style={{ fontSize: 48, marginBottom: 16 }}>🔭</div>
                     <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 22, color: "#a78bfa", marginBottom: 8 }}>{query ? "No coachings found" : "No coachings yet"}</div>
