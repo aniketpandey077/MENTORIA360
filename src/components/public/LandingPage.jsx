@@ -633,7 +633,6 @@ export default function LandingPage({ onShowAuth, preSelectCoaching }) {
   const cursorDotRef   = useRef(null);
   const rafRef         = useRef(null);
   const threeCleanup   = useRef(null);
-  const exploreLoaded  = useRef(false);
   const [scriptsReady, setScriptsReady] = useState(true);
   const [countersRun,  setCountersRun]  = useState(false);
   const [cardVis,      setCardVis]      = useState(false);
@@ -647,13 +646,9 @@ export default function LandingPage({ onShowAuth, preSelectCoaching }) {
     return () => { window.removeEventListener("m360PortalDone", onDone); clearTimeout(t); };
   }, []);
 
-  // ── Lazy Explore data ─────────────────────────────────────────
-  // Fetches only when user opens Explore (not on every page load).
-  // Shows a loading spinner while fetching so users never see a
-  // false "No coachings yet" empty state.
-  const loadExploreData = useCallback(() => {
-    if (exploreLoaded.current) return;
-    exploreLoaded.current = true;
+  // ── Load explore data on mount (eager) ────────────────────────
+  // Loads once when landing page mounts so Explore is instant.
+  useEffect(() => {
     setFeaturedLoading(true);
     Promise.all([
       searchCoachings("").catch(() => []),
@@ -663,6 +658,7 @@ export default function LandingPage({ onShowAuth, preSelectCoaching }) {
       setTutors(allTutors);
     }).finally(() => setFeaturedLoading(false));
   }, []);
+
 
   // ── Cleanup on unmount / view change ────────────────────────
   useEffect(() => {
@@ -883,7 +879,6 @@ export default function LandingPage({ onShowAuth, preSelectCoaching }) {
   }, []);
 
   const openExplore = () => {
-    loadExploreData(); // fetch Firestore data only now (lazy — not on page load)
     setView("explore");
     setExploreReady(false);
     setTimeout(() => setExploreReady(true), 60);
