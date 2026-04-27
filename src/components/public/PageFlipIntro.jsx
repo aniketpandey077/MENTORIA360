@@ -43,19 +43,19 @@ export default function PageFlipIntro() {
       timers.current.push(id);
     };
 
-    // Phase: ring starts immediately, text at 350ms
-    add(() => setPhase("letters"), 350);
+    // Phase: ring starts immediately, text at 180ms (was 350ms)
+    add(() => setPhase("letters"), 180);
 
-    // Letters appear one by one, staggered
+    // Letters appear one by one — stagger 35ms each (was 65ms)
     BRAND_LETTERS.forEach((_, i) => {
-      add(() => setLetterCount(i + 1), 350 + i * 65);
+      add(() => setLetterCount(i + 1), 180 + i * 35);
     });
 
-    // Tagline after all letters
-    const allLettersDone = 350 + BRAND_LETTERS.length * 65;
-    add(() => setPhase("tagline"), allLettersDone + 80);
-    add(() => setPhase("glow"),    allLettersDone + 250);
-    add(() => finish(),            allLettersDone + 600);
+    // Tagline after all letters — tighter delays
+    const allLettersDone = 180 + BRAND_LETTERS.length * 35;
+    add(() => setPhase("tagline"), allLettersDone + 50);  // was +80
+    add(() => setPhase("glow"),    allLettersDone + 150); // was +250
+    add(() => finish(),            allLettersDone + 350); // was +600
 
     return () => timers.current.forEach(clearTimeout);
     // eslint-disable-next-line
@@ -176,30 +176,39 @@ export default function PageFlipIntro() {
           pointerEvents: "none",
         }} />
 
-        {/* Skip */}
+        {/* Skip — large, bright, impossible to miss */}
         <button
           onClick={e => { e.stopPropagation(); finish(); }}
           style={{
             position:       "absolute",
             top:            20,
             right:          24,
-            padding:        "7px 18px",
-            border:         "1px solid rgba(79,142,247,0.3)",
-            borderRadius:   20,
-            background:     "rgba(4,8,18,0.85)",
-            color:          "#4A5E74",
+            padding:        "10px 24px",
+            border:         "1px solid rgba(79,142,247,0.7)",
+            borderRadius:   24,
+            background:     "rgba(79,142,247,0.18)",
+            color:          "#93BBFF",
             fontFamily:     "'DM Sans', sans-serif",
-            fontSize:       11,
-            fontWeight:     600,
-            letterSpacing:  "0.1em",
+            fontSize:       13,
+            fontWeight:     700,
+            letterSpacing:  "0.06em",
             textTransform:  "uppercase",
             cursor:         "pointer",
             backdropFilter: "blur(8px)",
             zIndex:         10,
             transition:     "all 0.2s",
+            boxShadow:      "0 0 16px rgba(79,142,247,0.3)",
           }}
-          onMouseEnter={e => { e.currentTarget.style.background = "rgba(79,142,247,0.14)"; e.currentTarget.style.color = "#93BBFF"; e.currentTarget.style.borderColor = "rgba(79,142,247,0.55)"; }}
-          onMouseLeave={e => { e.currentTarget.style.background = "rgba(4,8,18,0.85)"; e.currentTarget.style.color = "#4A5E74"; e.currentTarget.style.borderColor = "rgba(79,142,247,0.3)"; }}
+          onMouseEnter={e => {
+            e.currentTarget.style.background  = "rgba(79,142,247,0.32)";
+            e.currentTarget.style.boxShadow   = "0 0 28px rgba(79,142,247,0.55)";
+            e.currentTarget.style.borderColor = "rgba(79,142,247,0.9)";
+          }}
+          onMouseLeave={e => {
+            e.currentTarget.style.background  = "rgba(79,142,247,0.18)";
+            e.currentTarget.style.boxShadow   = "0 0 16px rgba(79,142,247,0.3)";
+            e.currentTarget.style.borderColor = "rgba(79,142,247,0.7)";
+          }}
         >
           Skip ✕
         </button>
@@ -338,7 +347,7 @@ export default function PageFlipIntro() {
             height:     "100%",
             background: "linear-gradient(90deg, #4F8EF7, #A78BFA, #4F8EF7)",
             boxShadow:  "0 0 10px rgba(79,142,247,0.5)",
-            animation:  `pfi-progress ${350 + BRAND_LETTERS.length * 65 + 600}ms linear forwards`,
+            animation:  `pfi-progress ${180 + BRAND_LETTERS.length * 35 + 350}ms linear forwards`,
           }} />
         </div>
 

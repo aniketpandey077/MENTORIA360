@@ -35,7 +35,18 @@ export default function AnimatedBackground() {
     const dotCtx = dot.getContext("2d");
     const S = stateRef.current;
 
-    // Deep-copy orbs so state is fresh on remount
+    // ── Perf / accessibility guards ─────────────────────────────────
+    const prefersLess = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const isMobile    = window.matchMedia("(pointer: coarse)").matches;
+
+    // If reduced motion is preferred: skip all animation, paint a static bg
+    if (prefersLess) {
+      S.W = bg.width  = dot.width  = window.innerWidth;
+      S.H = bg.height = dot.height = window.innerHeight;
+      bgCtx.fillStyle = "#080C14";
+      bgCtx.fillRect(0, 0, S.W, S.H);
+      return;
+    }
     S.orbs = ORBS.map(o => ({ ...o }));
     S.alive = true;
 
@@ -57,7 +68,9 @@ export default function AnimatedBackground() {
       S.H = bg.height = dot.height = window.innerHeight;
       S.mx = S.W / 2;
       S.my = S.H / 2;
-      S.dots = Array.from({ length: 70 }, () => mkDot(S.W, S.H));
+      // Mobile: 20 dots instead of 70 — big CPU savings on phones
+      const dotCount = isMobile ? 20 : 70;
+      S.dots = Array.from({ length: dotCount }, () => mkDot(S.W, S.H));
     };
     resize();
 
